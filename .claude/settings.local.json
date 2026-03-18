@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Read(//usr/local/**)",
+      "Read(//opt/homebrew/**)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(xargs kill:*)",
+      "Bash(find /Users/chirlaram/spp-gardens-vms -type f -name *.sql)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(sed -i '' \"s/🖨 Print Bill/👁 View Bill/g\" /Users/chirlaram/spp-gardens-vms/src/modals/BookingDetailModal.jsx)",
+      "Bash(__NEW_LINE_c38d61e850da74ce__ sed:*)"
+    ]
+  }
+}
