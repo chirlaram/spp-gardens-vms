@@ -250,6 +250,7 @@ input, select, textarea { font-family: inherit; }
   box-shadow: var(--shadow-sm);
   padding: 20px;
   border: 1px solid #eef3ee;
+  min-width: 0; /* prevent grid blowout */
 }
 .card-title {
   font-family: var(--font-heading);
@@ -402,6 +403,32 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: #f9fcf9; }
 
+/* Sticky first column — all screen sizes */
+.data-table th:first-child,
+.data-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #fff;
+}
+.data-table th:first-child {
+  background: #f6faf6;
+  z-index: 3;
+}
+.data-table tr:hover td:first-child { background: #f9fcf9; }
+/* Subtle right shadow to indicate more content */
+.data-table th:first-child::after,
+.data-table td:first-child::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -6px;
+  width: 6px;
+  height: 100%;
+  background: linear-gradient(to right, rgba(0,0,0,0.06), transparent);
+  pointer-events: none;
+}
+
 /* ── Toast ── */
 .toast {
   position: fixed;
@@ -490,6 +517,12 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .modal-md { max-width: 580px; }
 .modal-lg { max-width: 780px; }
 .modal-xl { max-width: 960px; }
+
+.booking-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
 
 @keyframes modalIn {
   from { opacity: 0; transform: scale(0.96) translateY(-8px); }
@@ -702,6 +735,61 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   font-weight: 600;
 }
 
+/* ── New Booking Form Grid ── */
+/* Desktop: 2-column with slots on the right spanning all rows */
+.nbf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "client  slots"
+    "event   slots"
+    "slots   slots"
+    "pricing slots"
+    "payment slots"
+    "notes   slots";
+  column-gap: 24px;
+}
+/* Override: slots column spans right side */
+.nbf-grid {
+  grid-template-areas: none;
+  grid-template-columns: 1fr 1fr;
+}
+.nbf-client  { grid-column: 1; }
+.nbf-event   { grid-column: 1; }
+.nbf-slots   { grid-column: 2; grid-row: 1 / 7; }
+.nbf-pricing { grid-column: 1; }
+.nbf-payment { grid-column: 1; }
+.nbf-notes   { grid-column: 1; }
+
+/* Mobile: single column, natural DOM order (client→event→slots→pricing→payment→notes) */
+@media (max-width: 768px) {
+  .nbf-grid { grid-template-columns: 1fr; }
+  .nbf-client, .nbf-event, .nbf-slots, .nbf-pricing, .nbf-payment, .nbf-notes {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+}
+
+/* ── Revenue Summary Grid ── */
+.revenue-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+@media (max-width: 480px) {
+  .revenue-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .revenue-summary-grid > div {
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid #eef3ee;
+    padding: 12px 0 !important;
+  }
+  .revenue-summary-grid > div:last-child { border-bottom: none; }
+}
+
 /* ── Venue Occupancy Chart ── */
 .occupancy-chart {
   margin-top: 8px;
@@ -861,6 +949,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   width: 110px;
   text-align: left;
   padding: 5px 8px;
+  position: sticky;
+  left: 0;
+  z-index: 2;
 }
 .calendar-table th {
   background: var(--forest);
@@ -893,6 +984,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border-bottom: 1px solid #e0ebe0;
   min-width: 85px;
   max-width: 110px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
 }
 .resource-cell .res-short {
   font-size: 0.6rem;
@@ -972,7 +1066,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
    ============================================================ */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
 }
 .dashboard-grid .card-full { grid-column: 1 / -1; }
@@ -1263,19 +1357,24 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     max-height: 90vh;
   }
 
+  .booking-detail-grid { grid-template-columns: 1fr; }
+
   .form-row { grid-template-columns: 1fr; }
   .form-row-3 { grid-template-columns: 1fr 1fr; }
 
-  .stat-grid { grid-template-columns: 1fr 1fr 1fr; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
 
-  .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  .page-content { overflow-x: hidden; }
 
-  .filter-bar { flex-direction: column; align-items: stretch; }
-  .filter-control { min-width: 100%; }
+  .filter-bar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .filter-bar .btn { flex-shrink: 0; white-space: nowrap; }
+  .filter-control { flex-shrink: 0; min-width: 140px; }
 
-  .calendar-table { font-size: 0.65rem; }
+  .calendar-table { font-size: 0.65rem; width: auto; min-width: 100%; }
   .calendar-table .resource-header-cell { width: 80px; }
-  .resource-cell { min-width: 70px; max-width: 90px; font-size: 0.65rem; }
+  .resource-cell { min-width: 72px; max-width: 90px; font-size: 0.65rem; }
+  .slot-cell { min-width: 44px; }
   .slot-half { min-height: 18px; }
 
   .tabs { overflow-x: auto; }
@@ -1289,10 +1388,279 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 
 @media (max-width: 480px) {
-  .stat-grid { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .form-row-3 { grid-template-columns: 1fr; }
   .login-card { padding: 28px 20px; }
+  .stat-card .stat-value { font-size: 1rem; }
+  .stat-card .stat-sub { display: none; }
+  .payment-summary-bar { display: grid; grid-template-columns: repeat(2, 1fr); flex-direction: unset; }
+  .payment-sum-val { font-size: 1.1rem; }
+  .occupancy-label { width: 100px; font-size: 0.72rem; }
+  .data-table th, .data-table td { padding: 6px 8px; }
 }
+
+/* ============================================================
+   ROOM ALLOTMENT MODULE
+   ============================================================ */
+
+/* Stats bar */
+.room-stats-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.room-stat-card {
+  flex: 1;
+  min-width: 110px;
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 12px 16px;
+  text-align: center;
+  border-top: 3px solid var(--grove);
+}
+.room-stat-card.warn { border-top-color: #f59e0b; }
+.room-stat-card.ok   { border-top-color: var(--forest); }
+.room-stat-num   { font-size: 1.5rem; font-weight: 700; color: var(--forest); line-height: 1; }
+.room-stat-label { font-size: 0.7rem; color: #888; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Booking list */
+.room-booking-list { display: flex; flex-direction: column; gap: 12px; }
+
+.room-booking-card {
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border-left: 4px solid #ccc;
+  overflow: hidden;
+}
+.room-booking-card.card-needs    { border-left-color: #f59e0b; }
+.room-booking-card.card-allotted { border-left-color: var(--grove); }
+.room-booking-card.card-partial  { border-left-color: #2196f3; }
+.room-booking-card.card-keys-done{ border-left-color: var(--forest); }
+
+.room-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 16px;
+  gap: 12px;
+}
+.room-card-info    { flex: 1; }
+.room-card-client  { font-size: 1rem; font-weight: 700; color: var(--forest); margin-bottom: 2px; }
+.room-card-meta    { font-size: 0.78rem; color: #888; margin-bottom: 6px; }
+.room-card-dates   { display: flex; flex-wrap: wrap; gap: 5px; }
+.room-date-tag     { font-size: 0.72rem; background: var(--mist); color: var(--forest); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
+.room-date-slot    { opacity: 0.65; }
+
+.room-card-actions { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+
+/* Status badges */
+.room-status-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.badge-needs    { background: #fef3c7; color: #92400e; }
+.badge-allotted { background: #dcfce7; color: #166534; }
+.badge-partial  { background: #dbeafe; color: #1d4ed8; }
+.badge-keys-done{ background: #d1fae5; color: #065f46; }
+
+/* Key issuance list */
+.room-key-list {
+  border-top: 1px solid #f0f0f0;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fafafa;
+}
+.room-key-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  padding: 5px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.room-key-item:last-child { border-bottom: none; }
+.room-key-item.key-done   { background: transparent; }
+.room-key-num   { font-weight: 600; color: var(--forest); min-width: 70px; }
+.room-key-issued-label { color: #059669; font-weight: 600; flex: 1; }
+.room-key-pending      { color: #aaa; font-size: 0.78rem; }
+
+.room-key-action-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+  transition: opacity 0.15s;
+}
+.room-key-action-btn:disabled { opacity: 0.5; cursor: default; }
+.room-key-action-btn.issue  { background: var(--forest); color: #fff; }
+.room-key-action-btn.issue:hover:not(:disabled) { background: var(--grove); }
+.room-key-action-btn.revoke { background: #fee2e2; color: #b91c1c; }
+.room-key-action-btn.revoke:hover:not(:disabled) { background: #fecaca; }
+
+.room-card-notes {
+  font-size: 0.78rem;
+  color: #666;
+  padding-top: 6px;
+  font-style: italic;
+}
+
+/* Requested vs allotted inline summary */
+.room-req-vs-allot {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+.room-req-label  { color: #aaa; }
+.room-req-value  { font-weight: 600; color: #555; }
+.room-req-sep    { color: #ddd; }
+.room-req-ok     { color: #166534; }
+.room-req-short  { color: #b45309; }
+.room-req-warning {
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+}
+
+/* Room count stepper in New Booking modal */
+.room-count-control {
+  display: inline-flex;
+  align-items: center;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.room-count-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f4f4f4;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--forest);
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.room-count-btn:hover:not(:disabled) { background: #e0e0e0; }
+.room-count-btn:disabled { color: #ccc; cursor: default; }
+.room-count-value {
+  min-width: 36px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--forest);
+  padding: 0 4px;
+}
+
+/* Badge on tab */
+.room-badge-warn {
+  display: inline-block;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 6px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+/* Allotment modal booking info */
+.room-allot-booking-info {
+  background: var(--mist);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  border-left: 3px solid var(--grove);
+}
+.room-allot-client { font-size: 1rem; font-weight: 700; color: var(--forest); margin-bottom: 2px; }
+.room-allot-meta   { font-size: 0.78rem; color: #888; margin-bottom: 6px; }
+.room-allot-dates  { display: flex; flex-wrap: wrap; gap: 5px; }
+
+/* Room grid */
+.room-grid-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
+.room-grid-table {
+  border-collapse: collapse;
+  width: auto;
+  min-width: 100%;
+  background: #fff;
+}
+.room-grid-header-cell {
+  background: var(--forest);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 6px 8px;
+  text-align: center;
+  white-space: nowrap;
+  border: 1px solid rgba(255,255,255,0.1);
+  min-width: 42px;
+}
+.room-grid-today-col { background: var(--gold) !important; color: #3d2400 !important; }
+.room-grid-dow { font-size: 0.58rem; opacity: 0.7; }
+.room-grid-day { font-size: 0.78rem; font-weight: 700; }
+
+.room-grid-sticky-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+.room-grid-room-label {
+  background: #f6faf6;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--forest);
+  padding: 6px 10px;
+  border-right: 2px solid #e0ebe0;
+  border-bottom: 1px solid #e8eee8;
+  white-space: nowrap;
+  min-width: 72px;
+}
+.room-grid-cell {
+  font-size: 0.65rem;
+  text-align: center;
+  padding: 4px 4px;
+  border: 1px solid #f0f0f0;
+  min-width: 42px;
+  height: 32px;
+  vertical-align: middle;
+}
+.room-grid-free     { color: #d0d0d0; }
+.room-grid-occupied { font-weight: 600; overflow: hidden; }
+
+/* Grid legend */
+.room-grid-legend {
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 12px 16px;
+}
+.room-grid-legend-items { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.room-grid-legend-item  { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; }
+.room-grid-legend-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
 /* ============================================================
    MISC UTILITIES
@@ -1466,4 +1834,270 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   border-radius: 6px 6px 0 0;
+}
+
+/* ============================================================
+   BOOKING CATEGORY TOGGLE
+   ============================================================ */
+.booking-category-toggle {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: var(--mist);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(44, 92, 48, 0.15);
+}
+
+.cat-option {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.cat-option input[type="radio"] {
+  margin-top: 2px;
+  accent-color: var(--grove);
+  flex-shrink: 0;
+}
+
+.cat-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-option-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--forest);
+}
+
+.cat-option-desc {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.cat-option.active {
+  border-color: var(--grove);
+  background: #f0faf0;
+}
+
+.cat-option.active .cat-option-title {
+  color: var(--grove);
+}
+
+@media (max-width: 480px) {
+  .booking-category-toggle {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* ============================================================
+   BANQUET MEALS (inside SlotBuilder)
+   ============================================================ */
+.banquet-meals {
+  margin-top: 14px;
+  border-top: 1px dashed var(--moss);
+  padding-top: 12px;
+}
+
+.banquet-meals-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--forest);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.banquet-add-meal-btn {
+  background: var(--mist);
+  border: 1px solid var(--moss);
+  color: var(--grove);
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.banquet-add-meal-btn:hover { background: #d4ebd5; }
+
+.banquet-meals-empty {
+  font-size: 0.78rem;
+  color: #aaa;
+  font-style: italic;
+  padding: 6px 0;
+}
+
+.banquet-meal-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.banquet-meal-row .form-control {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.banquet-meal-amount {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--forest);
+  min-width: 80px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.banquet-meal-remove {
+  background: #fce4ec;
+  border: 1px solid #f48fb1;
+  color: #c62828;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+.banquet-meal-remove:hover { background: #f48fb1; }
+
+.banquet-slot-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--mist);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.banquet-slot-total {
+  font-weight: 600;
+  color: var(--forest);
+}
+
+@media (max-width: 600px) {
+  .banquet-meal-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .banquet-meal-row select:first-child { grid-column: 1; }
+  .banquet-meal-row select:nth-child(2) { grid-column: 2; }
+  .banquet-meal-remove { grid-column: 2; justify-self: end; }
+}
+
+/* ============================================================
+   BANQUET PRICING SUMMARY (in modal pricing section)
+   ============================================================ */
+.banquet-revenue-card {
+  background: #f0faf0;
+  border: 1px solid var(--moss);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.banquet-revenue-card-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--forest);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.banquet-slot-breakdown {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #b2d8b4;
+}
+
+.banquet-slot-breakdown-title {
+  font-size: 0.75rem;
+  color: #555;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.banquet-slot-meal-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.73rem;
+  color: #666;
+  padding: 1px 0;
+}
+
+.banquet-slot-meal-line span:last-child {
+  font-weight: 500;
+  color: var(--forest);
+}
+
+.banquet-slot-pax-summary {
+  font-size: 0.72rem;
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.banquet-revenue-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--forest);
+  padding-top: 6px;
+  border-top: 1px solid #b2d8b4;
+}
+
+.banquet-total-summary {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-top: 12px;
+}
+
+.banquet-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: #555;
+  padding: 3px 0;
+}
+
+.banquet-total-row.grand-total {
+  border-top: 1px solid #ccc;
+  margin-top: 4px;
+  padding-top: 6px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--forest);
 }

@@ -1,11 +1,12 @@
 import { supabase } from './supabase'
+import bcrypt from 'bcryptjs'
 
 const ROLE_PERMISSIONS = {
-  management: ['create', 'edit', 'payment', 'cancel', 'postpone', 'commitments', 'view_all', 'dashboard', 'complete', 'view_kitchen', 'incidentals', 'bill'],
-  accounts: ['create', 'edit', 'payment', 'cancel', 'postpone', 'commitments', 'view_all', 'dashboard', 'incidentals', 'bill'],
+  management: ['create', 'edit', 'payment', 'cancel', 'postpone', 'commitments', 'view_all', 'dashboard', 'complete', 'view_kitchen', 'incidentals', 'bill', 'rooms', 'events_tab', 'manage_users'],
+  accounts: ['create', 'edit', 'payment', 'cancel', 'postpone', 'commitments', 'view_all', 'dashboard', 'incidentals', 'bill', 'rooms'],
   sales: ['commitments', 'commitments_read', 'view_all', 'dashboard'],
-  events: ['view_all', 'commitments', 'commitments_read', 'dashboard', 'complete', 'incidentals'],
-  housekeeping: ['view_kitchen'],
+  events: ['view_all', 'commitments', 'commitments_read', 'events_tab', 'complete', 'incidentals', 'bill', 'rooms'],
+  housekeeping: ['view_kitchen', 'rooms'],
 }
 
 const SESSION_KEY = 'spp_session'
@@ -32,10 +33,17 @@ export async function login(username, pin) {
     .from('users')
     .select('*')
     .eq('username', username.trim().toLowerCase())
-    .eq('pin', pin.trim())
     .single()
 
   if (error || !data) {
+    throw new Error('Invalid username or PIN')
+  }
+
+  const pinMatch = data.pin.startsWith('$2')
+    ? await bcrypt.compare(pin.trim(), data.pin)
+    : data.pin === pin.trim()
+
+  if (!pinMatch) {
     throw new Error('Invalid username or PIN')
   }
 

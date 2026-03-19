@@ -11,6 +11,7 @@ import PostponeModal from '../modals/PostponeModal'
 import CommitmentsModal from '../modals/CommitmentsModal'
 import { formatCurrency, formatDate, todayISO, VENUE_LABELS, KITCHEN_LABELS } from '../utils/formatters'
 import { MONTH_NAMES_SHORT as MONTH_NAMES } from '../utils/constants'
+import { computeBookingTotals } from '../utils/statusCalc'
 import { ToastContext } from '../App'
 
 const VENUES = Object.entries(VENUE_LABELS).map(([key, label]) => ({ key, label }))
@@ -43,6 +44,10 @@ function bookingInRange(booking, from, to) {
     if (to && s.date > to) return false
     return true
   })
+}
+
+function bookingTotalToCollect(b) {
+  return computeBookingTotals(b).totalToCollect
 }
 
 export default function Dashboard() {
@@ -79,7 +84,7 @@ export default function Dashboard() {
   )
 
   // Stat card calculations (range-aware)
-  const totalRevenue = rangeBookings.reduce((s, b) => s + Number(b.total || 0), 0)
+  const totalRevenue = rangeBookings.reduce((s, b) => s + bookingTotalToCollect(b), 0)
   const totalPaid = rangeBookings.reduce((s, b) =>
     s + (b.payments || []).reduce((sp, p) => sp + Number(p.amount || 0), 0), 0)
   const pendingBalance = totalRevenue - totalPaid
@@ -173,7 +178,7 @@ export default function Dashboard() {
       const monthKey = slotsInRange[0].date.slice(0, 7)
       const entry = months.find(m => m.key === monthKey)
       if (entry) {
-        entry.revenue += Number(b.total || 0)
+        entry.revenue += bookingTotalToCollect(b)
         entry.collected += (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
       }
     }
@@ -326,7 +331,7 @@ export default function Dashboard() {
         {/* Revenue Summary */}
         <div className="card card-full">
           <div className="card-title">Revenue Summary</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div className="revenue-summary-grid">
             <div style={{ textAlign: 'center', padding: '12px 0' }}>
               <div style={{ fontSize: '0.75rem', color: '#888', fontWeight: 600, marginBottom: 6 }}>Total Contracted</div>
               <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--forest)' }}>{formatCurrency(totalRevenue)}</div>
@@ -448,12 +453,13 @@ export default function Dashboard() {
                   <tr>
                     <th>Client</th>
                     <th>Event</th>
-                    <th>Next Date</th>
+                    <th>Event Date</th>
                     <th>Venues</th>
                     <th>Status</th>
-                    <th>Total</th>
+                    <th>To Collect</th>
                     <th>Paid</th>
                     <th>Balance</th>
+                    <th>Progress</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -461,18 +467,28 @@ export default function Dashboard() {
                     const futureSlots = (b.booking_slots || []).filter(s => s.date >= today).sort((a, b) => a.date.localeCompare(b.date))
                     const nextSlot = futureSlots[0]
                     const paid = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
-                    const bal = Number(b.total || 0) - paid
+                    const ttc = bookingTotalToCollect(b)
+                    const bal = ttc - paid
+                    const pct = ttc > 0 ? Math.min(100, Math.round((paid / ttc) * 100)) : 0
                     const venues = nextSlot ? (nextSlot.venues || []).map(v => VENUE_LABELS[v] || v).join(', ') : '—'
                     return (
                       <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => setModal({ type: 'detail', data: b })}>
                         <td><span style={{ fontWeight: 600 }}>{b.client}</span></td>
                         <td>{b.event}</td>
-                        <td>{nextSlot ? `${formatDate(nextSlot.date)} ${nextSlot.slot.toUpperCase()}` : '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{nextSlot ? `${formatDate(nextSlot.date)} ${nextSlot.slot.toUpperCase()}` : '—'}</td>
                         <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{venues}</td>
                         <td><StatusBadge status={b.status} /></td>
-                        <td>{formatCurrency(b.total)}</td>
+                        <td style={{ fontWeight: 600 }}>{formatCurrency(ttc)}</td>
                         <td style={{ color: 'var(--grove)', fontWeight: 600 }}>{formatCurrency(paid)}</td>
                         <td style={{ color: bal > 0 ? '#e65100' : '#1b5e20', fontWeight: 600 }}>{formatCurrency(bal)}</td>
+                        <td style={{ minWidth: 100 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div className="progress-bar-bg" style={{ flex: 1 }}>
+                              <div className={`progress-bar-fill ${pct >= 100 ? 'over' : ''}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: '#888', minWidth: 30 }}>{pct}%</span>
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}
@@ -488,7 +504,7 @@ export default function Dashboard() {
         <NewBookingModal onClose={() => setModal(null)} onSuccess={id => handleSuccess('Booking created!', id, true)} user={user} bookings={bookings} />
       )}
       {modal?.type === 'detail' && (
-        <BookingDetailModal booking={modal.data} onClose={() => setModal(null)} onEdit={b => setModal({ type: 'edit', data: b })} onPayment={b => setModal({ type: 'payment', data: b })} onCancel={b => setModal({ type: 'cancel', data: b })} onPostpone={b => setModal({ type: 'postpone', data: b })} onCommitments={b => setModal({ type: 'commitments', data: b })} user={user} onRefresh={refreshBooking} onPatch={patchBooking} />
+        <BookingDetailModal booking={modal.data} onClose={() => setModal(null)} onEdit={b => setModal({ type: 'edit', data: b })} onPayment={b => setModal({ type: 'payment', data: b })} onCancel={b => setModal({ type: 'cancel', data: b })} onPostpone={b => setModal({ type: 'postpone', data: b })} onCommitments={b => setModal({ type: 'commitments', data: b })} user={user} onRefresh={async id => { const u = await refreshBooking(id); if (u) setModal(m => m?.type === 'detail' && m.data?.id === id ? { ...m, data: u } : m) }} onPatch={patchBooking} />
       )}
       {modal?.type === 'edit' && (
         <EditBookingModal booking={modal.data} onClose={() => setModal(null)} onSuccess={id => handleSuccess('Booking updated!', id)} user={user} bookings={bookings} />

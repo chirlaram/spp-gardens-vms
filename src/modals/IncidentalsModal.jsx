@@ -1,12 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { saveIncidentals } from '../services/incidentalService'
+import { saveExtraPlates } from '../services/bookingService'
 import { formatCurrency } from '../utils/formatters'
-
-const ROOM_RATE = 5000
-
-function emptyItem(category) {
-  return { category, description: '', qty: '', rate: '' }
-}
+import { INCIDENTALS_CATALOG, ROOM_RATE } from '../utils/constants'
 
 function calcAmount(item) {
   return (Number(item.qty) || 0) * (Number(item.rate) || 0)
@@ -16,17 +12,32 @@ function subtotal(items) {
   return items.reduce((s, it) => s + calcAmount(it), 0)
 }
 
-function ItemRow({ item, onChange, onRemove, autoDesc = false }) {
+function emptyItem(category) {
+  return { category, description: '', qty: '', rate: '', isCatalog: false }
+}
+
+/**
+ * ItemRow renders one line item.
+ * - catalog items: description locked, qty/rate editable, no remove button
+ * - locked items (ROOMS): everything locked, no remove button
+ * - custom items: everything editable, has remove button
+ */
+function ItemRow({ item, onChange, onRemove, locked = false }) {
+  const lockDesc = locked || item.isCatalog
+  const lockQtyRate = locked
+  const showRemove = !locked && !item.isCatalog
+  const amt = calcAmount(item)
+
   return (
-    <tr>
+    <tr style={{ background: item.isCatalog ? '#fafcfa' : '' }}>
       <td style={{ padding: '4px 6px' }}>
         <input
           className="form-control"
-          style={{ fontSize: '0.82rem', padding: '4px 8px' }}
+          style={{ fontSize: '0.82rem', padding: '4px 8px', background: lockDesc ? '#f5f9f5' : '', color: lockDesc ? '#555' : '' }}
           value={item.description}
           onChange={e => onChange({ ...item, description: e.target.value })}
           placeholder="Description"
-          readOnly={autoDesc}
+          readOnly={lockDesc}
         />
       </td>
       <td style={{ padding: '4px 6px', width: 70 }}>
@@ -38,7 +49,7 @@ function ItemRow({ item, onChange, onRemove, autoDesc = false }) {
           onChange={e => onChange({ ...item, qty: e.target.value })}
           placeholder="0"
           min="0"
-          readOnly={autoDesc}
+          readOnly={lockQtyRate}
         />
       </td>
       <td style={{ padding: '4px 6px', width: 100 }}>
@@ -50,14 +61,14 @@ function ItemRow({ item, onChange, onRemove, autoDesc = false }) {
           onChange={e => onChange({ ...item, rate: e.target.value })}
           placeholder="0"
           min="0"
-          readOnly={autoDesc}
+          readOnly={lockQtyRate}
         />
       </td>
-      <td style={{ padding: '4px 6px', width: 110, textAlign: 'right', fontWeight: 600, fontSize: '0.82rem', color: 'var(--forest)' }}>
-        {formatCurrency(calcAmount(item))}
+      <td style={{ padding: '4px 6px', width: 110, textAlign: 'right', fontWeight: 600, fontSize: '0.82rem', color: amt > 0 ? 'var(--forest)' : '#ccc' }}>
+        {amt > 0 ? formatCurrency(amt) : '—'}
       </td>
       <td style={{ padding: '4px 6px', width: 36 }}>
-        {!autoDesc && (
+        {showRemove && (
           <button
             type="button"
             onClick={onRemove}
@@ -69,18 +80,14 @@ function ItemRow({ item, onChange, onRemove, autoDesc = false }) {
   )
 }
 
-function SectionTable({ title, items, onChangeItem, onAddItem, onRemoveItem, lockedRows = 0 }) {
+function SectionTable({ title, items, onChangeItem, onAddItem, onRemoveItem, lockedCount = 0 }) {
   const total = subtotal(items)
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{
-        background: 'var(--forest)',
-        color: '#fff',
-        padding: '6px 12px',
-        fontWeight: 700,
-        fontSize: '0.82rem',
-        letterSpacing: '0.05em',
-        borderRadius: '6px 6px 0 0',
+        background: 'var(--forest)', color: '#fff',
+        padding: '6px 12px', fontWeight: 700, fontSize: '0.82rem',
+        letterSpacing: '0.05em', borderRadius: '6px 6px 0 0',
       }}>{title}</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e0e8e0' }}>
         <thead>
@@ -99,7 +106,7 @@ function SectionTable({ title, items, onChangeItem, onAddItem, onRemoveItem, loc
               item={item}
               onChange={updated => onChangeItem(i, updated)}
               onRemove={() => onRemoveItem(i)}
-              autoDesc={i < lockedRows}
+              locked={i < lockedCount}
             />
           ))}
         </tbody>
@@ -126,32 +133,78 @@ function SectionTable({ title, items, onChangeItem, onAddItem, onRemoveItem, loc
 }
 
 export default function IncidentalsModal({ booking, onClose, onSuccess, user }) {
-  // Pre-populate Others with rooms from room_bookings
   const roomBookings = booking.room_bookings || []
   const existingIncidentals = booking.incidental_items || []
+  const isBanquet = booking.booking_category === 'banquet'
+
+  function buildCatalogItems(category) {
+    return (INCIDENTALS_CATALOG[category] || []).map(c => {
+      const saved = existingIncidentals.find(
+        i => i.category === category && i.description.toLowerCase() === c.description.toLowerCase()
+      )
+      return {
+        category,
+        description: c.description,
+        qty: saved ? String(saved.qty) : '',
+        rate: saved ? String(saved.rate) : String(c.rate),
+        isCatalog: true,
+      }
+    })
+  }
+
+  function buildCustomItems(category) {
+    const catalogDescs = (INCIDENTALS_CATALOG[category] || []).map(c => c.description.toLowerCase())
+    return existingIncidentals
+      .filter(i => i.category === category && !catalogDescs.includes(i.description.toLowerCase()) && i.description !== 'ROOMS')
+      .map(i => ({ category, description: i.description, qty: String(i.qty), rate: String(i.rate), isCatalog: false }))
+  }
 
   function buildInitialState() {
-    if (existingIncidentals.length > 0) {
-      return {
-        lighting: existingIncidentals.filter(i => i.category === 'lighting').map(i => ({
-          category: 'lighting', description: i.description, qty: String(i.qty), rate: String(i.rate),
-        })),
-        others: existingIncidentals.filter(i => i.category === 'others').map(i => ({
-          category: 'others', description: i.description, qty: String(i.qty), rate: String(i.rate),
-        })),
+    // LIGHTING: catalog rows first, then any saved custom rows
+    const lighting = [...buildCatalogItems('lighting'), ...buildCustomItems('lighting')]
+
+    // OTHERS: ROOMS row first (fully locked), then catalog, then custom
+    const roomsRows = []
+    if (existingIncidentals.length === 0 && roomBookings.length > 0) {
+      roomsRows.push({ category: 'others', description: 'ROOMS', qty: String(roomBookings.length), rate: String(ROOM_RATE), isCatalog: false })
+    } else {
+      const saved = existingIncidentals.find(i => i.category === 'others' && i.description === 'ROOMS')
+      if (saved) roomsRows.push({ category: 'others', description: 'ROOMS', qty: String(saved.qty), rate: String(saved.rate), isCatalog: false })
+    }
+    const others = [...roomsRows, ...buildCatalogItems('others'), ...buildCustomItems('others')]
+
+    return { lighting, others, roomsCount: roomsRows.length }
+  }
+
+  // Food extras state (banquet only) — extra_pax per meal per slot
+  const [slotsData, setSlotsData] = useState(() =>
+    (booking.booking_slots || []).map(s => ({
+      id: s.id,
+      date: s.date,
+      slot: s.slot,
+      meals: (s.meals || []).map(m => ({
+        meal_type: m.meal_type || '',
+        menu: m.menu || '',
+        pax: Number(m.pax || 0),
+        rate: Number(m.rate || 0),
+        extra_pax: m.extra_pax != null ? String(m.extra_pax) : '',
+      })),
+    }))
+  )
+
+  function updateMealExtraPax(slotIdx, mealIdx, val) {
+    setSlotsData(prev => prev.map((s, si) =>
+      si !== slotIdx ? s : {
+        ...s,
+        meals: s.meals.map((m, mi) => mi !== mealIdx ? m : { ...m, extra_pax: val }),
       }
-    }
-    // No existing items — seed OTHERS with rooms row if rooms booked
-    const others = []
-    if (roomBookings.length > 0) {
-      others.push({ category: 'others', description: 'ROOMS', qty: String(roomBookings.length), rate: String(ROOM_RATE) })
-    }
-    return { lighting: [], others }
+    ))
   }
 
   const init = buildInitialState()
   const [lightingItems, setLightingItems] = useState(init.lighting)
   const [othersItems, setOthersItems] = useState(init.others)
+  const lockedOthersCount = init.roomsCount
 
   const [venueGst, setVenueGst] = useState(Number(booking.venue_gst_percent) || 18)
   const [incGst, setIncGst] = useState(Number(booking.incidental_gst_percent) || 18)
@@ -161,20 +214,11 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Detect how many Others rows are auto-generated (locked to prevent deletion)
-  const lockedOthersRows = (init.others.length > 0 && init.others[0]?.description === 'ROOMS') ? 1 : 0
-
-  function updateLighting(i, item) {
-    setLightingItems(prev => prev.map((it, idx) => idx === i ? item : it))
-  }
-  function removeLighting(i) {
-    setLightingItems(prev => prev.filter((_, idx) => idx !== i))
-  }
-  function updateOthers(i, item) {
-    setOthersItems(prev => prev.map((it, idx) => idx === i ? item : it))
-  }
+  function updateLighting(i, item) { setLightingItems(prev => prev.map((it, idx) => idx === i ? item : it)) }
+  function removeLighting(i) { setLightingItems(prev => prev.filter((_, idx) => idx !== i)) }
+  function updateOthers(i, item) { setOthersItems(prev => prev.map((it, idx) => idx === i ? item : it)) }
   function removeOthers(i) {
-    if (i < lockedOthersRows) return // cannot remove auto-rows
+    if (i < lockedOthersCount) return
     setOthersItems(prev => prev.filter((_, idx) => idx !== i))
   }
 
@@ -186,16 +230,17 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
   const afterDiscount = Math.max(0, totalAB - discountAmt)
   const incidentalGstAmt = Math.round(afterDiscount * incGst / 100)
   const totalIncidental = afterDiscount + incidentalGstAmt
-  const lawnGstAmt = Math.round(Number(booking.total || 0) * venueGst / 100)
-  const totalLawn = Number(booking.total || 0) + lawnGstAmt
+  const lawnGstAmt = Math.round(Number(booking.lawn_rental || 0) * venueGst / 100)
+  const totalLawn = Number(booking.lawn_rental || 0) + lawnGstAmt
 
   async function handleSave() {
     setLoading(true)
     setError('')
     try {
+      // Only save items that have a description AND qty > 0
       const allItems = [
-        ...lightingItems.filter(i => i.description.trim()).map(i => ({ ...i, category: 'lighting' })),
-        ...othersItems.filter(i => i.description.trim()).map(i => ({ ...i, category: 'others' })),
+        ...lightingItems.filter(i => i.description.trim() && Number(i.qty) > 0).map(i => ({ ...i, category: 'lighting' })),
+        ...othersItems.filter(i => i.description.trim() && Number(i.qty) > 0).map(i => ({ ...i, category: 'others' })),
       ]
       await saveIncidentals(booking.id, allItems, {
         venue_gst_percent: venueGst,
@@ -204,6 +249,22 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
         prepared_by: preparedBy.trim(),
         checked_by: checkedBy.trim(),
       }, user.id)
+
+      // For banquet: save extra_pax back to booking_slots
+      if (isBanquet) {
+        const slotsToUpdate = slotsData.map(s => ({
+          id: s.id,
+          meals: s.meals.map(m => ({
+            meal_type: m.meal_type,
+            menu: m.menu,
+            pax: m.pax,
+            rate: m.rate,
+            extra_pax: Number(m.extra_pax) || 0,
+          })),
+        }))
+        await saveExtraPlates(booking.id, slotsToUpdate)
+      }
+
       onSuccess(booking.id)
     } catch (err) {
       setError(err.message || 'Failed to save')
@@ -224,23 +285,76 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
         </div>
 
         <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-          {/* Stage banner */}
           {booking.status === 'Completed' ? (
-            <div style={{
-              background: '#e8f5e9', color: '#1b5e20', border: '1px solid #66bb6a',
-              borderRadius: 6, padding: '8px 14px', marginBottom: 16, fontSize: '0.83rem', fontWeight: 600,
-            }}>
+            <div style={{ background: '#e8f5e9', color: '#1b5e20', border: '1px solid #66bb6a', borderRadius: 6, padding: '8px 14px', marginBottom: 16, fontSize: '0.83rem', fontWeight: 600 }}>
               ✅ POST-EVENT ACTUALS — Enter final actual charges for consolidated bill generation.
             </div>
           ) : (
-            <div style={{
-              background: '#fff8e1', color: '#b36a00', border: '1px solid #f5c842',
-              borderRadius: 6, padding: '8px 14px', marginBottom: 16, fontSize: '0.83rem', fontWeight: 600,
-            }}>
-              📋 PRE-EVENT ESTIMATE — These are estimated charges. Update to actual amounts after the event.
+            <div style={{ background: '#fff8e1', color: '#b36a00', border: '1px solid #f5c842', borderRadius: 6, padding: '8px 14px', marginBottom: 16, fontSize: '0.83rem', fontWeight: 600 }}>
+              📋 PRE-EVENT ESTIMATE — Fill in quantities for items used. Only rows with qty &gt; 0 appear on the bill.
             </div>
           )}
           {error && <div className="login-error" style={{ marginBottom: 12 }}>{error}</div>}
+
+          {/* Food Extras — banquet only */}
+          {isBanquet && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                background: '#2e5939', color: '#fff',
+                padding: '6px 12px', fontWeight: 700, fontSize: '0.82rem',
+                letterSpacing: '0.05em', borderRadius: '6px 6px 0 0',
+              }}>FOOD EXTRAS — Extra Plates Post-Event</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e0e8e0' }}>
+                <thead>
+                  <tr style={{ background: '#f5f9f5', fontSize: '0.75rem', color: '#666' }}>
+                    <th style={{ padding: '6px', textAlign: 'left', fontWeight: 600 }}>Meal</th>
+                    <th style={{ padding: '6px', textAlign: 'right', width: 80, fontWeight: 600 }}>Orig. Pax</th>
+                    <th style={{ padding: '6px', textAlign: 'right', width: 100, fontWeight: 600 }}>Rate (₹)</th>
+                    <th style={{ padding: '6px', textAlign: 'right', width: 90, fontWeight: 600 }}>Extra Pax</th>
+                    <th style={{ padding: '6px', textAlign: 'right', width: 110, fontWeight: 600 }}>Extra Amt (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slotsData.flatMap((s, si) =>
+                    s.meals.map((m, mi) => {
+                      const slotLabel = s.date ? `${s.date.split('-').reverse().join('.')} (${(s.slot || '').toUpperCase()})` : ''
+                      const extraAmt = (Number(m.extra_pax) || 0) * m.rate
+                      return (
+                        <tr key={`${si}-${mi}`} style={{ background: '#fafcfa' }}>
+                          <td style={{ padding: '4px 6px', fontSize: '0.82rem' }}>
+                            {slotLabel} — {m.meal_type.charAt(0).toUpperCase() + m.meal_type.slice(1)} ({m.menu})
+                          </td>
+                          <td style={{ padding: '4px 6px', textAlign: 'right', fontSize: '0.82rem', color: '#888' }}>
+                            {m.pax}
+                          </td>
+                          <td style={{ padding: '4px 6px', textAlign: 'right', fontSize: '0.82rem', color: '#888' }}>
+                            {m.rate.toLocaleString('en-IN')}
+                          </td>
+                          <td style={{ padding: '4px 6px', width: 90 }}>
+                            <input
+                              className="form-control"
+                              style={{ fontSize: '0.82rem', padding: '4px 8px', textAlign: 'right' }}
+                              type="number"
+                              value={m.extra_pax}
+                              onChange={e => updateMealExtraPax(si, mi, e.target.value)}
+                              placeholder="0"
+                              min="0"
+                            />
+                          </td>
+                          <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600, fontSize: '0.82rem', color: extraAmt > 0 ? 'var(--forest)' : '#ccc' }}>
+                            {extraAmt > 0 ? formatCurrency(extraAmt) : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                  {slotsData.every(s => s.meals.length === 0) && (
+                    <tr><td colSpan={5} style={{ padding: '8px 12px', color: '#aaa', fontSize: '0.82rem' }}>No meal details found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <SectionTable
             title="A — LIGHTING"
@@ -256,12 +370,11 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
             onChangeItem={updateOthers}
             onAddItem={() => setOthersItems(prev => [...prev, emptyItem('others')])}
             onRemoveItem={removeOthers}
-            lockedRows={lockedOthersRows}
+            lockedCount={lockedOthersCount}
           />
 
           {/* Totals Summary */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {/* Incidentals calc */}
             <div className="card" style={{ fontSize: '0.85rem' }}>
               <div className="card-title">Incidental Summary</div>
               <div className="info-row">
@@ -312,7 +425,6 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
               </div>
             </div>
 
-            {/* Bill meta + grand total */}
             <div className="card" style={{ fontSize: '0.85rem' }}>
               <div className="card-title">Bill Meta</div>
               <div className="info-row" style={{ alignItems: 'center' }}>
@@ -327,8 +439,8 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
                 />
               </div>
               <div className="info-row">
-                <span className="info-label">Lawn Charges</span>
-                <span className="info-value">{formatCurrency(booking.total)}</span>
+                <span className="info-label">Lawn Rental</span>
+                <span className="info-value">{formatCurrency(booking.lawn_rental)}</span>
               </div>
               <div className="info-row">
                 <span className="info-label">Lawn GST</span>
@@ -338,7 +450,6 @@ export default function IncidentalsModal({ booking, onClose, onSuccess, user }) 
                 <span className="info-label" style={{ fontWeight: 700 }}>Grand Total</span>
                 <span className="info-value" style={{ fontWeight: 700, color: 'var(--forest)' }}>{formatCurrency(totalLawn + totalIncidental)}</span>
               </div>
-
               <div className="form-group" style={{ marginTop: 12 }}>
                 <label className="form-label">Prepared By</label>
                 <input className="form-control" style={{ fontSize: '0.82rem' }} value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Name" />

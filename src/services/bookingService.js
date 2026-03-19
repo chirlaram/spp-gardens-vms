@@ -9,6 +9,7 @@ function buildSlotRows(bookingId, slots) {
     slot: s.slot,
     venues: s.venues || [],
     kitchen: s.kitchen || null,
+    meals: s.meals || [],
   }))
 }
 
@@ -72,7 +73,7 @@ export async function getBookings() {
  * Create a new booking with slots and optional initial payment
  */
 export async function createBooking(data, userId) {
-  const { slots, initialPayment, commitmentData, roomNumbers, ...bookingData } = data
+  const { slots, initialPayment, commitmentData, ...bookingData } = data
 
   // Insert booking
   const { data: booking, error: bookingError } = await supabase
@@ -115,7 +116,16 @@ export async function createBooking(data, userId) {
   }
 
   // Calculate and update status
-  const newStatus = deriveStatus('Token Advance', payments, booking.total)
+  const _lawnRental = Number(booking.lawn_rental || 0)
+  const _roomCharges = (Number(booking.rooms_required) || 0) * 5000
+  const _deposit = Number(booking.deposit_amount || 0)
+  // For banquet bookings, compute revenue from the slots we just inserted
+  const _banquetRevenue = booking.booking_category === 'banquet'
+    ? (slots || []).reduce((t, s) => t + (s.meals || []).reduce((st, m) => st + (Number(m.pax || 0) * Number(m.rate || 0)), 0), 0)
+    : 0
+  const _totalToCollect = _banquetRevenue + _lawnRental + _roomCharges + _deposit
+  const _advanceTarget = Number(booking.advance_target || 0)
+  const newStatus = deriveStatus('Token Advance', payments, _totalToCollect, _advanceTarget)
   if (newStatus !== 'Token Advance') {
     await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
   }
@@ -127,17 +137,6 @@ export async function createBooking(data, userId) {
       ...commitmentData,
       updated_by: userId,
     })
-  }
-
-  // Insert room bookings if provided
-  if (roomNumbers && roomNumbers.length > 0) {
-    const roomRows = roomNumbers.map(n => ({
-      booking_id: booking.id,
-      room_number: n,
-      created_by: userId,
-    }))
-    const { error: roomError } = await supabase.from('room_bookings').insert(roomRows)
-    if (roomError) throw roomError
   }
 
   return booking
@@ -290,16 +289,38 @@ export async function recordPayment(bookingId, paymentData, userId) {
 export async function recalculateStatus(bookingId) {
   const { data: booking } = await supabase
     .from('bookings')
-    .select('*, payments(*)')
+    .select('*, payments(*), room_bookings(*), booking_slots(*)')
     .eq('id', bookingId)
     .single()
 
   if (!booking) return
 
-  const newStatus = deriveStatus(booking.status, booking.payments, booking.total)
+  const _chargeRooms = (booking.room_bookings && booking.room_bookings.length > 0)
+    ? booking.room_bookings.length : (booking.rooms_required || 0)
+  const _banquetRevenue = booking.booking_category === 'banquet'
+    ? (booking.booking_slots || []).reduce((t, s) => t + (s.meals || []).reduce((st, m) => st + (Number(m.pax || 0) * Number(m.rate || 0)), 0), 0)
+    : 0
+  const _totalToCollect = _banquetRevenue + (Number(booking.lawn_rental) || 0) + _chargeRooms * 5000 + (Number(booking.deposit_amount) || 0)
+  const _advanceTarget = Number(booking.advance_target) || 0
+  const newStatus = deriveStatus(booking.status, booking.payments, _totalToCollect, _advanceTarget)
   if (newStatus !== booking.status) {
     await supabase.from('bookings').update({ status: newStatus }).eq('id', bookingId)
   }
+}
+
+/**
+ * Save extra_pax values back to booking_slots meals JSONB.
+ * slotsWithExtraPax = [{ id, meals: [{...mealFields, extra_pax: number}] }]
+ */
+export async function saveExtraPlates(bookingId, slotsWithExtraPax) {
+  for (const slot of slotsWithExtraPax) {
+    const { error } = await supabase
+      .from('booking_slots')
+      .update({ meals: slot.meals })
+      .eq('id', slot.id)
+    if (error) throw error
+  }
+  return true
 }
 
 /**
@@ -339,18 +360,3 @@ export async function updateCommitments(bookingId, commitmentData, userId) {
   }
 }
 
-/**
- * Update the deposit status for a booking (Pending → Collected | Refunded)
- */
-export async function updateDepositStatus(bookingId, newStatus, userId) {
-  const { error } = await supabase
-    .from('bookings')
-    .update({ deposit_status: newStatus })
-    .eq('id', bookingId)
-
-  if (error) throw error
-
-  await logAmendment(bookingId, 'deposit', 'deposit_status', '', newStatus, null, userId)
-
-  return true
-}

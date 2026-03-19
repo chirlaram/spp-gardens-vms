@@ -1,12 +1,15 @@
 import { todayISO, VENUE_LABELS, KITCHEN_LABELS } from '../utils/formatters'
 import { checkConflict } from '../utils/conflictCheck'
+import { BANQUET_MENUS, SLOT_MEAL_TYPES, VENUE_MIN_GUARANTEE } from '../utils/constants'
 
 const VENUES = Object.entries(VENUE_LABELS).map(([key, label]) => ({ key, label }))
 const KITCHENS = Object.entries(KITCHEN_LABELS).map(([key, label]) => ({ key, label }))
 
-export default function SlotBuilder({ slots, onChange, bookings = [], excludeBookingId = null, slotErrors = [] }) {
+const MEAL_TYPE_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
+
+export default function SlotBuilder({ slots, onChange, bookings = [], excludeBookingId = null, slotErrors = [], banquetMode = false }) {
   function addSlot() {
-    onChange([...slots, { date: todayISO(), slot: 'pm', venues: [], kitchen: '' }])
+    onChange([...slots, { date: todayISO(), slot: 'pm', venues: [], kitchen: '', meals: [] }])
   }
 
   function removeSlot(index) {
@@ -38,13 +41,71 @@ export default function SlotBuilder({ slots, onChange, bookings = [], excludeBoo
     return checkConflict(bookings, s.date, s.slot, kitchenKey, excludeBookingId)
   }
 
+  // ── Banquet meal helpers ──────────────────────────────
+  function addMeal(slotIndex) {
+    const s = slots[slotIndex]
+    const availableTypes = SLOT_MEAL_TYPES[s.slot] || ['breakfast', 'lunch', 'dinner']
+    const usedTypes = (s.meals || []).map(m => m.meal_type)
+    const nextType = availableTypes.find(t => !usedTypes.includes(t)) || availableTypes[0]
+    const newMeal = { meal_type: nextType, menu: BANQUET_MENUS[0], pax: '', rate: '', amount: 0 }
+    const updated = slots.map((sl, i) =>
+      i === slotIndex ? { ...sl, meals: [...(sl.meals || []), newMeal] } : sl
+    )
+    onChange(updated)
+  }
+
+  function removeMeal(slotIndex, mealIndex) {
+    const updated = slots.map((sl, i) =>
+      i === slotIndex
+        ? { ...sl, meals: (sl.meals || []).filter((_, mi) => mi !== mealIndex) }
+        : sl
+    )
+    onChange(updated)
+  }
+
+  function updateMeal(slotIndex, mealIndex, field, value) {
+    const updated = slots.map((sl, i) => {
+      if (i !== slotIndex) return sl
+      const meals = (sl.meals || []).map((m, mi) => {
+        if (mi !== mealIndex) return m
+        const next = { ...m, [field]: value }
+        const pax = Number(field === 'pax' ? value : m.pax) || 0
+        const rate = Number(field === 'rate' ? value : m.rate) || 0
+        next.amount = pax * rate
+        return next
+      })
+      return { ...sl, meals }
+    })
+    onChange(updated)
+  }
+
+  function getSlotMinGuarantee(slotIndex) {
+    const s = slots[slotIndex]
+    const guarantees = (s.venues || []).map(v => VENUE_MIN_GUARANTEE[v] || 0).filter(g => g > 0)
+    return guarantees.length > 0 ? Math.max(...guarantees) : 0
+  }
+
+  function getSlotTotalPax(slotIndex) {
+    return (slots[slotIndex].meals || []).reduce((sum, m) => sum + (Number(m.pax) || 0), 0)
+  }
+
+  function getSlotRevenue(slotIndex) {
+    return (slots[slotIndex].meals || []).reduce((sum, m) => sum + (Number(m.amount) || 0), 0)
+  }
+
   return (
     <div className="slot-builder">
       {slots.map((s, i) => {
         const hasAnyConflict = [
-          ...( s.venues || []).flatMap(v => getVenueConflicts(i, v)),
+          ...(s.venues || []).flatMap(v => getVenueConflicts(i, v)),
           ...(s.kitchen ? getKitchenConflicts(i, s.kitchen) : [])
         ].length > 0
+
+        const minGuarantee = banquetMode ? getSlotMinGuarantee(i) : 0
+        const totalPax = banquetMode ? getSlotTotalPax(i) : 0
+        const slotRevenue = banquetMode ? getSlotRevenue(i) : 0
+        const meetsMin = minGuarantee === 0 || totalPax >= minGuarantee
+        const availableMealTypes = SLOT_MEAL_TYPES[s.slot] || ['breakfast', 'lunch', 'dinner']
 
         return (
           <div key={i} className="slot-entry">
@@ -117,14 +178,8 @@ export default function SlotBuilder({ slots, onChange, bookings = [], excludeBoo
             <div className="form-group mt-3" style={{ marginBottom: 0 }}>
               <label className="form-label">Kitchen</label>
               <div className="venue-checkbox-grid">
-                <label
-                  className={`venue-checkbox-item ${!s.kitchen ? 'selected' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    checked={!s.kitchen}
-                    onChange={() => updateSlot(i, 'kitchen', '')}
-                  />
+                <label className={`venue-checkbox-item ${!s.kitchen ? 'selected' : ''}`}>
+                  <input type="radio" checked={!s.kitchen} onChange={() => updateSlot(i, 'kitchen', '')} />
                   None
                 </label>
                 {KITCHENS.map(({ key, label }) => {
@@ -136,11 +191,7 @@ export default function SlotBuilder({ slots, onChange, bookings = [], excludeBoo
                       key={key}
                       className={`venue-checkbox-item ${isSelected ? 'selected' : ''} ${hasConflict ? 'conflict' : ''}`}
                     >
-                      <input
-                        type="radio"
-                        checked={isSelected}
-                        onChange={() => updateSlot(i, 'kitchen', key)}
-                      />
+                      <input type="radio" checked={isSelected} onChange={() => updateSlot(i, 'kitchen', key)} />
                       {label}
                       {conflicts.length > 0 && (
                         <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: '#e53935' }} title="Conflict">⚠</span>
@@ -150,6 +201,94 @@ export default function SlotBuilder({ slots, onChange, bookings = [], excludeBoo
                 })}
               </div>
             </div>
+
+            {/* ── Banquet Meals ── */}
+            {banquetMode && (
+              <div className="banquet-meals">
+                <div className="banquet-meals-header">
+                  <span>Meals</span>
+                  <button type="button" className="banquet-add-meal-btn" onClick={() => addMeal(i)}>
+                    + Add Meal
+                  </button>
+                </div>
+
+                {(s.meals || []).length === 0 && (
+                  <div className="banquet-meals-empty">No meals added yet — click "+ Add Meal" to start</div>
+                )}
+
+                {(s.meals || []).map((meal, mi) => (
+                  <div key={mi} className="banquet-meal-row">
+                    <select
+                      className="form-control"
+                      value={meal.meal_type}
+                      onChange={e => updateMeal(i, mi, 'meal_type', e.target.value)}
+                      style={{ flex: '0 0 100px' }}
+                    >
+                      {availableMealTypes.map(mt => (
+                        <option key={mt} value={mt}>{MEAL_TYPE_LABELS[mt] || mt}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="form-control"
+                      value={meal.menu}
+                      onChange={e => updateMeal(i, mi, 'menu', e.target.value)}
+                      style={{ flex: 1 }}
+                    >
+                      {BANQUET_MENUS.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Pax"
+                      value={meal.pax}
+                      onChange={e => updateMeal(i, mi, 'pax', e.target.value)}
+                      min="0"
+                      style={{ flex: '0 0 72px' }}
+                    />
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Rate ₹"
+                      value={meal.rate}
+                      onChange={e => updateMeal(i, mi, 'rate', e.target.value)}
+                      min="0"
+                      style={{ flex: '0 0 88px' }}
+                    />
+                    <span className="banquet-meal-amount">
+                      ₹{((Number(meal.pax) || 0) * (Number(meal.rate) || 0)).toLocaleString('en-IN')}
+                    </span>
+                    <button
+                      type="button"
+                      className="banquet-meal-remove"
+                      onClick={() => removeMeal(i, mi)}
+                      title="Remove meal"
+                    >×</button>
+                  </div>
+                ))}
+
+                {(s.meals || []).length > 0 && (
+                  <div className="banquet-slot-summary">
+                    <span>
+                      Total pax: <strong>{totalPax}</strong>
+                      {minGuarantee > 0 && (
+                        <span style={{ marginLeft: 6 }}>
+                          / Min: {minGuarantee}
+                          {meetsMin
+                            ? <span style={{ color: '#16a34a', marginLeft: 4 }}>✓ Met</span>
+                            : <span style={{ color: '#dc2626', marginLeft: 4 }}>⚠ Below minimum — lawn rental may apply</span>
+                          }
+                        </span>
+                      )}
+                    </span>
+                    <span className="banquet-slot-total">
+                      Slot total: ₹{slotRevenue.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {slotErrors[i] && (
               <div style={{ color: '#c62828', fontSize: '0.8rem', marginTop: 6 }}>{slotErrors[i]}</div>

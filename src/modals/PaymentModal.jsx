@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { recordPayment } from '../services/bookingService'
 import { formatCurrency, todayISO, shortId } from '../utils/formatters'
-import { deriveStatus } from '../utils/statusCalc'
+import { deriveStatus, computeBookingTotals } from '../utils/statusCalc'
 import { downloadReceipt, viewReceipt } from '../utils/receiptGenerator'
 
 const PAYMENT_MODES = ['cash', 'upi', 'bank_transfer', 'cheque', 'card', 'other']
@@ -9,7 +9,8 @@ const PAYMENT_MODES = ['cash', 'upi', 'bank_transfer', 'cheque', 'card', 'other'
 export default function PaymentModal({ booking, onClose, onSuccess, user, onPatch }) {
   const payments = booking.payments || []
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
-  const balance = Number(booking.total || 0) - totalPaid
+  const { lawnRental, roomCharges, chargeRooms, depositAmount, totalBookingValue, totalToCollect, advanceTarget } = computeBookingTotals(booking)
+  const balance = totalToCollect - totalPaid
 
   const [form, setForm] = useState({
     amount: '',
@@ -20,7 +21,6 @@ export default function PaymentModal({ booking, onClose, onSuccess, user, onPatc
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  // savedPayment is set after a successful payment, showing receipt buttons
   const [savedPayment, setSavedPayment] = useState(null)
   const [receiptLoading, setReceiptLoading] = useState('')
 
@@ -33,9 +33,8 @@ export default function PaymentModal({ booking, onClose, onSuccess, user, onPatc
     setError('')
 
     const paymentAmount = Number(form.amount)
-    // Optimistic: instantly recalculate status with the new payment added
     const optimisticPayments = [...(booking.payments || []), { amount: paymentAmount }]
-    const optimisticStatus = deriveStatus(booking.status, optimisticPayments, booking.total)
+    const optimisticStatus = deriveStatus(booking.status, optimisticPayments, totalToCollect, advanceTarget)
     onPatch?.(booking.id, { status: optimisticStatus })
 
     try {
@@ -49,7 +48,6 @@ export default function PaymentModal({ booking, onClose, onSuccess, user, onPatc
       setSavedPayment(payment)
       onSuccess(booking.id)
     } catch (err) {
-      // Rollback optimistic status update
       onPatch?.(booking.id, { status: booking.status })
       setError(err.message || 'Failed to record payment')
     } finally {
@@ -89,7 +87,6 @@ export default function PaymentModal({ booking, onClose, onSuccess, user, onPatc
         </div>
 
         {savedPayment ? (
-          /* Post-success: show receipt buttons */
           <div className="modal-body" style={{ textAlign: 'center', padding: '40px 32px' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>✅</div>
             <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--forest)', marginBottom: 6 }}>
@@ -123,8 +120,8 @@ export default function PaymentModal({ booking, onClose, onSuccess, user, onPatc
               {/* Summary */}
               <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 <div className="payment-sum-card">
-                  <div className="payment-sum-label">Total</div>
-                  <div className="payment-sum-val">{formatCurrency(booking.total)}</div>
+                  <div className="payment-sum-label">To Collect</div>
+                  <div className="payment-sum-val">{formatCurrency(totalToCollect)}</div>
                 </div>
                 <div className="payment-sum-card">
                   <div className="payment-sum-label">Paid</div>
@@ -134,6 +131,13 @@ export default function PaymentModal({ booking, onClose, onSuccess, user, onPatc
                   <div className="payment-sum-label">Balance</div>
                   <div className="payment-sum-val" style={{ color: balance > 0 ? '#e65100' : '#1b5e20' }}>{formatCurrency(balance)}</div>
                 </div>
+              </div>
+              {/* Breakdown note */}
+              <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: 16, background: '#f9fafb', padding: '6px 10px', borderRadius: 6 }}>
+                {formatCurrency(lawnRental)} lawn
+                {chargeRooms > 0 && ` + ${formatCurrency(roomCharges)} rooms`}
+                {depositAmount > 0 && ` + ${formatCurrency(depositAmount)} deposit`}
+                {' = '}{formatCurrency(totalToCollect)} total
               </div>
 
               {error && <div className="login-error" style={{ marginBottom: 16 }}>{error}</div>}

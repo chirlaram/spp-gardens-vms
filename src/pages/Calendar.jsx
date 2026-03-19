@@ -341,7 +341,7 @@ export default function Calendar() {
           onPostpone={b => setModal({ type: 'postpone', data: b })}
           onCommitments={b => setModal({ type: 'commitments', data: b })}
           user={user}
-          onRefresh={refreshBooking}
+          onRefresh={async id => { const u = await refreshBooking(id); if (u) setModal(m => m?.type === 'detail' && m.data?.id === id ? { ...m, data: u } : m) }}
           onPatch={patchBooking}
         />
       )}

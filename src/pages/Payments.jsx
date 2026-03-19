@@ -10,7 +10,12 @@ import PostponeModal from '../modals/PostponeModal'
 import CommitmentsModal from '../modals/CommitmentsModal'
 import { formatCurrency, formatDate, formatDateTime, todayISO, shortId } from '../utils/formatters'
 import { downloadReceipt, viewReceipt } from '../utils/receiptGenerator'
+import { computeBookingTotals } from '../utils/statusCalc'
 import { ToastContext } from '../App'
+
+function bookingTotalToCollect(b) {
+  return computeBookingTotals(b).totalToCollect
+}
 
 // Returns days remaining until 14-day token deadline (negative = overdue)
 function tokenDaysLeft(createdAt) {
@@ -40,7 +45,7 @@ export default function Payments() {
   const { totalRevenue, totalCollected, totalBalance, tokenAdvanceCount } = useMemo(() => {
     let revenue = 0, collected = 0, tokenCount = 0
     for (const b of activeBookings) {
-      revenue += Number(b.total || 0)
+      revenue += bookingTotalToCollect(b)
       collected += (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
       if (b.status === 'Token Advance') tokenCount++
     }
@@ -109,7 +114,7 @@ export default function Payments() {
       {/* Summary Bar */}
       <div className="payment-summary-bar">
         <div className="payment-sum-card">
-          <div className="payment-sum-label">Total Revenue</div>
+          <div className="payment-sum-label">Total to Collect</div>
           <div className="payment-sum-val">{formatCurrency(totalRevenue)}</div>
         </div>
         <div className="payment-sum-card">
@@ -177,9 +182,10 @@ export default function Payments() {
                 <tr>
                   <th>Client</th>
                   <th>Event</th>
+                  <th>Event Date</th>
                   <th>Status</th>
                   <th>Token Deadline</th>
-                  <th>Total</th>
+                  <th>Total to be Collected</th>
                   <th>Paid</th>
                   <th>Balance</th>
                   <th>Progress</th>
@@ -188,11 +194,14 @@ export default function Payments() {
               </thead>
               <tbody>
                 {filteredBookings.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No bookings found</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No bookings found</td></tr>
                 ) : filteredBookings.map(b => {
                   const paid = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
-                  const bal = Number(b.total || 0) - paid
-                  const pct = Number(b.total) > 0 ? Math.min(100, Math.round((paid / Number(b.total)) * 100)) : 0
+                  const bal = bookingTotalToCollect(b) - paid
+                  const ttc = bookingTotalToCollect(b); const pct = ttc > 0 ? Math.min(100, Math.round((paid / ttc) * 100)) : 0
+                  const today = todayISO()
+                  const nextSlot = (b.booking_slots || []).filter(s => s.date >= today).sort((a, c) => a.date.localeCompare(c.date))[0]
+                    || (b.booking_slots || []).sort((a, c) => c.date.localeCompare(a.date))[0]
                   return (
                     <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => setModal({ type: 'detail', data: b })}>
                       <td>
@@ -200,6 +209,9 @@ export default function Payments() {
                         <div style={{ fontSize: '0.75rem', color: '#888' }}>{b.phone || ''}</div>
                       </td>
                       <td>{b.event}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {nextSlot ? `${formatDate(nextSlot.date)} ${nextSlot.slot.toUpperCase()}` : <span style={{ color: '#ccc' }}>—</span>}
+                      </td>
                       <td><StatusBadge status={b.status} /></td>
                       <td>
                         {b.status === 'Token Advance' && b.created_at ? (() => {
@@ -219,7 +231,7 @@ export default function Payments() {
                           )
                         })() : <span style={{ color: '#ccc' }}>—</span>}
                       </td>
-                      <td style={{ fontWeight: 600 }}>{formatCurrency(b.total)}</td>
+                      <td style={{ fontWeight: 600 }}>{formatCurrency(bookingTotalToCollect(b))}</td>
                       <td style={{ color: 'var(--grove)', fontWeight: 600 }}>{formatCurrency(paid)}</td>
                       <td style={{ color: bal > 0 ? '#e65100' : '#1b5e20', fontWeight: 600 }}>{formatCurrency(bal)}</td>
                       <td style={{ minWidth: 100 }}>
@@ -363,7 +375,7 @@ export default function Payments() {
           onPostpone={b => setModal({ type: 'postpone', data: b })}
           onCommitments={b => setModal({ type: 'commitments', data: b })}
           user={user}
-          onRefresh={refreshBooking}
+          onRefresh={async id => { const u = await refreshBooking(id); if (u) setModal(m => m?.type === 'detail' && m.data?.id === id ? { ...m, data: u } : m) }}
           onPatch={patchBooking}
         />
       )}

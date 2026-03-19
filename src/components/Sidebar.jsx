@@ -3,20 +3,32 @@ import { useAuth } from '../hooks/useAuth'
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: '⊞', label: 'Dashboard', perm: 'dashboard' },
-  { to: '/calendar', icon: '⊟', label: 'Calendar', perm: 'view_all' },
-  { to: '/payments', icon: '₹', label: 'Payments', perm: 'payment' },
-  { to: '/cancelled', icon: '✕', label: 'Cancelled', perm: 'view_all' },
+  { to: '/calendar',  icon: '⊟', label: 'Calendar',  perm: 'view_all' },
+  { to: '/payments',  icon: '₹', label: 'Payments',  perm: 'payment' },
+  { to: '/events',    icon: '🎪', label: 'Events',    perm: 'events_tab' },
+  { to: '/rooms',     icon: '🏨', label: 'Rooms',     perm: 'rooms' },
+  { to: '/cancelled', icon: '✕', label: 'Cancelled',  perm: 'view_all' },
+  { to: '/users',     icon: '👤', label: 'Users',      perm: 'manage_users' },
 ]
 
-// Special nav for housekeeping: only kitchen view
+// Special nav for housekeeping: kitchen view + room allotment
 const HOUSEKEEPING_NAV = [
   { to: '/calendar', icon: '⊟', label: 'Kitchen View', perm: 'view_kitchen' },
+  { to: '/rooms',    icon: '🏨', label: 'Rooms',        perm: 'rooms' },
+]
+
+// Events team nav: bookings list + rooms
+const EVENTS_NAV = [
+  { to: '/events', icon: '🎪', label: 'Events',  perm: 'events_tab' },
+  { to: '/rooms',  icon: '🏨', label: 'Rooms',   perm: 'rooms' },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
   const { user, logout, hasPermission } = useAuth()
 
-  const navItems = user?.role === 'housekeeping' ? HOUSEKEEPING_NAV : NAV_ITEMS
+  const navItems = user?.role === 'housekeeping' ? HOUSEKEEPING_NAV
+    : user?.role === 'events' ? EVENTS_NAV
+    : NAV_ITEMS
 
   return (
     <>

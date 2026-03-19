@@ -3,6 +3,7 @@ import { useBookings } from '../hooks/useBookings'
 import { useAuth } from '../hooks/useAuth'
 import BookingDetailModal from '../modals/BookingDetailModal'
 import { formatCurrency, formatDate, formatDateTime, VENUE_LABELS } from '../utils/formatters'
+import { computeBookingTotals } from '../utils/statusCalc'
 import { ToastContext } from '../App'
 
 export default function Cancelled() {
@@ -163,7 +164,7 @@ export default function Cancelled() {
                     )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontWeight: 700, color: 'var(--forest)', fontSize: '1.05rem' }}>{formatCurrency(b.total)}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--forest)', fontSize: '1.05rem' }}>{formatCurrency(computeBookingTotals(b).totalBookingValue)}</div>
                     {paid > 0 && (
                       <div style={{ fontSize: '0.8rem', color: forfeitedAmendment ? '#c62828' : 'var(--grove)', fontWeight: 600 }}>
                         {forfeitedAmendment ? '⚠ Forfeited: ' : 'Paid: '}{formatCurrency(paid)}

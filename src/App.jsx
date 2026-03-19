@@ -9,6 +9,9 @@ import Dashboard from './pages/Dashboard'
 import Calendar from './pages/Calendar'
 import Payments from './pages/Payments'
 import Cancelled from './pages/Cancelled'
+import RoomAllotment from './pages/RoomAllotment'
+import Events from './pages/Events'
+import UsersPage from './pages/UsersPage'
 
 export const ToastContext = React.createContext(null)
 
@@ -52,7 +55,7 @@ function App() {
           </div>
           <div className="page-content">
             <Routes>
-              <Route path="/" element={<Navigate to={hasPermission('dashboard') ? '/dashboard' : '/calendar'} replace />} />
+              <Route path="/" element={<Navigate to={hasPermission('dashboard') ? '/dashboard' : hasPermission('events_tab') ? '/events' : '/calendar'} replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/calendar" element={
                 hasPermission('view_all') || hasPermission('view_kitchen')
@@ -65,7 +68,16 @@ function App() {
               <Route path="/cancelled" element={
                 hasPermission('view_all') ? <Cancelled /> : <Navigate to="/dashboard" replace />
               } />
-              <Route path="*" element={<Navigate to={hasPermission('dashboard') ? '/dashboard' : '/calendar'} replace />} />
+              <Route path="/rooms" element={
+                hasPermission('rooms') ? <RoomAllotment /> : <Navigate to="/dashboard" replace />
+              } />
+              <Route path="/events" element={
+                hasPermission('events_tab') ? <Events /> : <Navigate to="/dashboard" replace />
+              } />
+              <Route path="/users" element={
+                hasPermission('manage_users') ? <UsersPage /> : <Navigate to="/dashboard" replace />
+              } />
+              <Route path="*" element={<Navigate to={hasPermission('dashboard') ? '/dashboard' : hasPermission('events_tab') ? '/events' : '/calendar'} replace />} />
             </Routes>
           </div>
         </div>

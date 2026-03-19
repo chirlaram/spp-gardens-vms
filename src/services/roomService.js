@@ -2,9 +2,9 @@ import { supabase } from './supabase'
 
 /**
  * Replace all room bookings for a booking (delete + re-insert).
- * Rooms inherit the booking's dates/slots — no separate dates stored.
+ * Called from the Room Allotment module after the pre-event meeting.
  */
-export async function saveRoomBookings(bookingId, roomNumbers, userId) {
+export async function saveRoomBookings(bookingId, roomNumbers, userId, notes = null) {
   await supabase.from('room_bookings').delete().eq('booking_id', bookingId)
 
   if (!roomNumbers || roomNumbers.length === 0) return []
@@ -13,6 +13,7 @@ export async function saveRoomBookings(bookingId, roomNumbers, userId) {
     booking_id: bookingId,
     room_number: n,
     created_by: userId,
+    notes,
   }))
 
   const { data, error } = await supabase
@@ -22,6 +23,28 @@ export async function saveRoomBookings(bookingId, roomNumbers, userId) {
 
   if (error) throw error
   return data || []
+}
+
+/**
+ * Mark a single room key as issued by housekeeping.
+ */
+export async function issueRoomKey(roomBookingId, userId) {
+  const { error } = await supabase
+    .from('room_bookings')
+    .update({ key_issued_by: userId, key_issued_at: new Date().toISOString() })
+    .eq('id', roomBookingId)
+  if (error) throw error
+}
+
+/**
+ * Revoke a previously-issued room key record.
+ */
+export async function revokeRoomKey(roomBookingId) {
+  const { error } = await supabase
+    .from('room_bookings')
+    .update({ key_issued_by: null, key_issued_at: null })
+    .eq('id', roomBookingId)
+  if (error) throw error
 }
 
 /**
