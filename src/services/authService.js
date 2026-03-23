@@ -5,7 +5,7 @@ const ROLE_PERMISSIONS = {
   management: ['create', 'edit', 'payment', 'cancel', 'postpone', 'commitments', 'view_all', 'dashboard', 'complete', 'view_kitchen', 'incidentals', 'bill', 'rooms', 'events_tab', 'manage_users'],
   accounts: ['create', 'edit', 'payment', 'cancel', 'postpone', 'commitments', 'view_all', 'dashboard', 'incidentals', 'bill', 'rooms'],
   sales: ['commitments', 'commitments_read', 'view_all', 'dashboard'],
-  events: ['view_all', 'commitments', 'commitments_read', 'events_tab', 'complete', 'incidentals', 'bill', 'rooms'],
+  events: ['dashboard', 'view_all', 'commitments', 'commitments_read', 'events_tab', 'complete', 'incidentals', 'bill', 'rooms'],
   housekeeping: ['view_kitchen', 'rooms'],
 }
 
