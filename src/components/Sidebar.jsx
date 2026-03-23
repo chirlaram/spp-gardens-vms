@@ -17,10 +17,12 @@ const HOUSEKEEPING_NAV = [
   { to: '/rooms',    icon: '🏨', label: 'Rooms',        perm: 'rooms' },
 ]
 
-// Events team nav: bookings list + rooms
+// Events team nav: dashboard, calendar, events, rooms
 const EVENTS_NAV = [
-  { to: '/events', icon: '🎪', label: 'Events',  perm: 'events_tab' },
-  { to: '/rooms',  icon: '🏨', label: 'Rooms',   perm: 'rooms' },
+  { to: '/dashboard', icon: '⊞', label: 'Dashboard', perm: 'dashboard' },
+  { to: '/calendar',  icon: '⊟', label: 'Calendar',  perm: 'view_all' },
+  { to: '/events',    icon: '🎪', label: 'Events',    perm: 'events_tab' },
+  { to: '/rooms',     icon: '🏨', label: 'Rooms',     perm: 'rooms' },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
