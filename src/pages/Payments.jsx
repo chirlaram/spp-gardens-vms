@@ -186,6 +186,7 @@ export default function Payments() {
                   <th>Status</th>
                   <th>Token Deadline</th>
                   <th>Total to be Collected</th>
+                  <th>GST (18%)</th>
                   <th>Paid</th>
                   <th>Balance</th>
                   <th>Progress</th>
@@ -194,7 +195,7 @@ export default function Payments() {
               </thead>
               <tbody>
                 {filteredBookings.length === 0 ? (
-                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No bookings found</td></tr>
+                  <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No bookings found</td></tr>
                 ) : filteredBookings.map(b => {
                   const paid = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
                   const bal = bookingTotalToCollect(b) - paid
@@ -232,6 +233,7 @@ export default function Payments() {
                         })() : <span style={{ color: '#ccc' }}>—</span>}
                       </td>
                       <td style={{ fontWeight: 600 }}>{formatCurrency(bookingTotalToCollect(b))}</td>
+                      <td style={{ fontWeight: 600, color: '#5c6bc0' }}>{formatCurrency(bookingTotalToCollect(b) * 0.18)}</td>
                       <td style={{ color: 'var(--grove)', fontWeight: 600 }}>{formatCurrency(paid)}</td>
                       <td style={{ color: bal > 0 ? '#e65100' : '#1b5e20', fontWeight: 600 }}>{formatCurrency(bal)}</td>
                       <td style={{ minWidth: 100 }}>
@@ -303,6 +305,7 @@ export default function Payments() {
                   <th>Client</th>
                   <th>Event</th>
                   <th>Amount</th>
+                  <th>GST (18%)</th>
                   <th>Mode</th>
                   <th>Reference</th>
                   <th>Note</th>
@@ -312,7 +315,7 @@ export default function Payments() {
               </thead>
               <tbody>
                 {allPayments.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No transactions found</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No transactions found</td></tr>
                 ) : allPayments.map(p => (
                   <tr
                     key={p.id}
@@ -323,6 +326,7 @@ export default function Payments() {
                     <td style={{ fontWeight: 600 }}>{p.booking.client}</td>
                     <td>{p.booking.event}</td>
                     <td style={{ fontWeight: 700, color: 'var(--grove)', fontSize: '1rem' }}>{formatCurrency(p.amount)}</td>
+                    <td style={{ fontWeight: 600, color: '#5c6bc0' }}>{formatCurrency(Number(p.amount || 0) * 0.18)}</td>
                     <td style={{ textTransform: 'capitalize' }}>{p.mode?.replace('_', ' ')}</td>
                     <td style={{ color: '#888' }}>{p.reference || '—'}</td>
                     <td style={{ color: '#888' }}>{p.note || '—'}</td>
@@ -355,7 +359,7 @@ export default function Payments() {
                     <td style={{ fontWeight: 700, color: 'var(--grove)', fontSize: '1.05rem', padding: '10px 14px', borderTop: '2px solid #e0ebe0' }}>
                       {formatCurrency(filteredTotal)}
                     </td>
-                    <td colSpan={5} style={{ borderTop: '2px solid #e0ebe0' }}></td>
+                    <td colSpan={6} style={{ borderTop: '2px solid #e0ebe0' }}></td>
                   </tr>
                 </tfoot>
               )}
