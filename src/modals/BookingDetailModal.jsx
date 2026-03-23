@@ -19,7 +19,7 @@ export default function BookingDetailModal({ booking, onClose, onEdit, onPayment
   const commitment = (booking.commitments || [])[0] || null
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
 
-  const { lawnRental, roomCharges, chargeRooms, depositAmount, banquetRevenue, totalBookingValue, totalToCollect, advanceTarget } = computeBookingTotals(booking)
+  const { lawnRental, roomCharges, chargeRooms, depositAmount, banquetRevenue, totalBookingValue, gst, totalToCollect, advanceTarget } = computeBookingTotals(booking)
   const balance = totalToCollect - totalPaid
   const isBanquet = booking.booking_category === 'banquet'
 
@@ -155,6 +155,12 @@ export default function BookingDetailModal({ booking, onClose, onEdit, onPayment
                   <div className="info-row">
                     <span className="info-label">Incidental Charges Deposit</span>
                     <span className="info-value">{formatCurrency(depositAmount)}</span>
+                  </div>
+                )}
+                {gst > 0 && (
+                  <div className="info-row">
+                    <span className="info-label" style={{ color: '#5c6bc0' }}>GST (18%)</span>
+                    <span className="info-value" style={{ color: '#5c6bc0', fontWeight: 600 }}>{formatCurrency(gst)}</span>
                   </div>
                 )}
                 <div className="info-row" style={{ borderTop: '1px solid #eef3ee', paddingTop: 6, marginTop: 4 }}>

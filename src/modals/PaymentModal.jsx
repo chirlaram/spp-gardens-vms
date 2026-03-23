@@ -9,7 +9,7 @@ const PAYMENT_MODES = ['cash', 'upi', 'bank_transfer', 'cheque', 'card', 'other'
 export default function PaymentModal({ booking, onClose, onSuccess, user, onPatch }) {
   const payments = booking.payments || []
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
-  const { lawnRental, roomCharges, chargeRooms, depositAmount, totalBookingValue, totalToCollect, advanceTarget } = computeBookingTotals(booking)
+  const { lawnRental, roomCharges, chargeRooms, depositAmount, totalBookingValue, gst, totalToCollect, advanceTarget } = computeBookingTotals(booking)
   const balance = totalToCollect - totalPaid
 
   const [form, setForm] = useState({
@@ -137,6 +137,7 @@ export default function PaymentModal({ booking, onClose, onSuccess, user, onPatc
                 {formatCurrency(lawnRental)} lawn
                 {chargeRooms > 0 && ` + ${formatCurrency(roomCharges)} rooms`}
                 {depositAmount > 0 && ` + ${formatCurrency(depositAmount)} deposit`}
+                {gst > 0 && <span style={{ color: '#5c6bc0' }}> + {formatCurrency(gst)} GST (18%)</span>}
                 {' = '}{formatCurrency(totalToCollect)} total
               </div>
 

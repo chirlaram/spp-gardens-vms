@@ -63,6 +63,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
   const [form, setForm] = useState({
     client: booking.client || '',
     phone: booking.phone || '',
+    alt_phone: booking.alt_phone || '',
     email: booking.email || '',
     event: booking.event || '',
     type: booking.type || 'Wedding',
@@ -72,6 +73,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
     advance_target: booking.advance_target || '',
     deposit_amount: booking.deposit_amount || '',
     notes: booking.notes || '',
+    rooms_notes: booking.rooms_notes || '',
   })
   const [slots, setSlots] = useState(existingSlots)
   const [roomsRequired, setRoomsRequired] = useState(booking.rooms_required || 0)
@@ -123,7 +125,9 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
   const lawnRentalNum = Number(form.lawn_rental) || 0
   const roomCharges = roomsRequired * ROOM_RATE
   const depositNum = Number(form.deposit_amount) || 0
-  const totalToCollect = (isBanquet ? banquetRevenue : 0) + lawnRentalNum + roomCharges + depositNum
+  const bookingValueNum = (isBanquet ? banquetRevenue : 0) + lawnRentalNum + roomCharges
+  const gstNum = Math.round((bookingValueNum + depositNum) * 0.18)
+  const totalToCollect = bookingValueNum + depositNum + gstNum
 
   function setField(f, v) { setForm(prev => ({ ...prev, [f]: v })) }
 
@@ -137,6 +141,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
         booking_category: bookingCategory,
         client: form.client.trim(),
         phone: form.phone.trim(),
+        alt_phone: form.alt_phone.trim(),
         email: form.email.trim(),
         event: form.event.trim(),
         type: form.type,
@@ -146,6 +151,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
         advance_target: Number(form.advance_target) || 0,
         deposit_amount: Number(form.deposit_amount) || 0,
         notes: form.notes.trim(),
+        rooms_notes: form.rooms_notes.trim(),
         rooms_required: roomsRequired,
         slots,
       }
@@ -216,9 +222,13 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                     <input className="form-control" value={form.phone} onChange={e => setField('phone', e.target.value)} type="tel" />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Email</label>
-                    <input className="form-control" value={form.email} onChange={e => setField('email', e.target.value)} type="email" />
+                    <label className="form-label">Additional Phone</label>
+                    <input className="form-control" value={form.alt_phone} onChange={e => setField('alt_phone', e.target.value)} placeholder="9999999999" type="tel" />
                   </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-control" value={form.email} onChange={e => setField('email', e.target.value)} type="email" />
                 </div>
               </div>{/* /nbf-client */}
 
@@ -288,6 +298,12 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                     </span>
                   </div>
                   <div style={{ marginTop: 8, fontSize: '0.73rem', color: '#aaa' }}>Specific room numbers are assigned after the pre-event meeting via the Rooms module.</div>
+                  {roomsRequired > 0 && (
+                    <div className="form-group" style={{ marginTop: 10 }}>
+                      <label className="form-label">Rooms Notes</label>
+                      <textarea className="form-control" value={form.rooms_notes} onChange={e => setField('rooms_notes', e.target.value)} placeholder="e.g. 2 HRP Lawn Rooms, ground floor preferred..." rows={2} />
+                    </div>
+                  )}
                 </div>
               </div>{/* /nbf-slots */}
 
@@ -341,6 +357,12 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                       <div className="banquet-total-row">
                         <span>Incidental Deposit</span>
                         <span>₹{depositNum.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                    {gstNum > 0 && (
+                      <div className="banquet-total-row" style={{ color: '#5c6bc0' }}>
+                        <span>GST (18%)</span>
+                        <span>₹{gstNum.toLocaleString('en-IN')}</span>
                       </div>
                     )}
                     <div className="banquet-total-row grand-total">

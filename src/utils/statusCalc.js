@@ -47,7 +47,8 @@ export function computeBookingTotals(booking) {
     ? computeBanquetRevenue(booking)
     : 0
   const totalBookingValue = banquetRevenue + lawnRental + roomCharges
-  const totalToCollect = totalBookingValue + depositAmount
+  const gst = Math.round((totalBookingValue + depositAmount) * 0.18)
+  const totalToCollect = totalBookingValue + depositAmount + gst
   const advanceTarget = Number(booking.advance_target || 0)
-  return { lawnRental, roomCharges, chargeRooms, depositAmount, banquetRevenue, totalBookingValue, totalToCollect, advanceTarget }
+  return { lawnRental, roomCharges, chargeRooms, depositAmount, banquetRevenue, totalBookingValue, gst, totalToCollect, advanceTarget }
 }
