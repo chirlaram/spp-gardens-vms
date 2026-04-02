@@ -78,7 +78,7 @@ function BlankRow() {
   )
 }
 
-export default function ConsolidatedBillTemplate({ booking, isFinal = false }) {
+export default function ConsolidatedBillTemplate({ booking, isFinal = false, logoSrc }) {
   const slots = booking.booking_slots || []
   const payments = booking.payments || []
   const incidentals = (booking.incidental_items || []).slice().sort((a, b) => a.sort_order - b.sort_order)
@@ -161,7 +161,7 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false }) {
       {/* LOGO */}
       <div style={{ textAlign: 'center', padding: '12px 0 8px' }}>
         <img
-          src="/spp-logo.webp"
+          src={logoSrc || '/spp-logo-dark.webp'}
           alt="SPP Gardens"
           style={{ height: 60, objectFit: 'contain' }}
           crossOrigin="anonymous"

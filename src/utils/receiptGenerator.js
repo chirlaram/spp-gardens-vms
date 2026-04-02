@@ -8,6 +8,21 @@ import { createElement } from 'react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import Receipt from '../components/Receipt'
+import logoUrl from '/spp-logo-dark.webp?url'
+
+/** Wait for all <img> elements inside a node to finish loading */
+function waitForImages(node) {
+  const imgs = node.querySelectorAll('img')
+  const promises = Array.from(imgs).map(img =>
+    img.complete
+      ? Promise.resolve()
+      : new Promise(resolve => {
+          img.onload = resolve
+          img.onerror = resolve
+        })
+  )
+  return Promise.all(promises)
+}
 
 /**
  * Render the Receipt component into a temporary off-screen div and
@@ -21,12 +36,13 @@ function renderReceiptNode(booking, payment, receiptNo) {
 
     const root = createRoot(container)
     root.render(
-      createElement(Receipt, { booking, payment, receiptNo })
+      createElement(Receipt, { booking, payment, receiptNo, logoSrc: logoUrl })
     )
 
-    // Give React one tick to paint
+    // Give React one tick to paint, then wait for images
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+      requestAnimationFrame(async () => {
+        await waitForImages(container)
         resolve({ node: container.firstElementChild, container, root })
       })
     })

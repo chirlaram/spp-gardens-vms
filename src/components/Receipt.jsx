@@ -10,7 +10,7 @@ import { formatCurrency, VENUE_LABELS } from '../utils/formatters'
  *   payment  — the specific payment record
  *   receiptNo — display receipt number (e.g. short payment id)
  */
-export default function Receipt({ booking, payment, receiptNo }) {
+export default function Receipt({ booking, payment, receiptNo, logoSrc }) {
   const payDate = payment.date
     ? (() => {
         const [y, m, d] = payment.date.split('-')
@@ -59,7 +59,7 @@ export default function Receipt({ booking, payment, receiptNo }) {
         <div style={{ flex: 1 }} />
         <div style={{ flex: 2, textAlign: 'center' }}>
           <img
-            src="/spp-logo.webp"
+            src={logoSrc || '/spp-logo-dark.webp'}
             alt="SPP Gardens"
             style={{ height: 72, objectFit: 'contain' }}
             crossOrigin="anonymous"

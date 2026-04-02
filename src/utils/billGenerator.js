@@ -9,6 +9,21 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import ConsolidatedBillTemplate from '../components/ConsolidatedBillTemplate'
 import { shortId } from './formatters'
+import logoUrl from '/spp-logo-dark.webp?url'
+
+/** Wait for all <img> elements inside a node to finish loading */
+function waitForImages(node) {
+  const imgs = node.querySelectorAll('img')
+  const promises = Array.from(imgs).map(img =>
+    img.complete
+      ? Promise.resolve()
+      : new Promise(resolve => {
+          img.onload = resolve
+          img.onerror = resolve
+        })
+  )
+  return Promise.all(promises)
+}
 
 function renderBillNode(booking, isFinal) {
   return new Promise(resolve => {
@@ -17,10 +32,11 @@ function renderBillNode(booking, isFinal) {
     document.body.appendChild(container)
 
     const root = createRoot(container)
-    root.render(createElement(ConsolidatedBillTemplate, { booking, isFinal }))
+    root.render(createElement(ConsolidatedBillTemplate, { booking, isFinal, logoSrc: logoUrl }))
 
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+      requestAnimationFrame(async () => {
+        await waitForImages(container)
         resolve({ node: container.firstElementChild, container, root })
       })
     })
