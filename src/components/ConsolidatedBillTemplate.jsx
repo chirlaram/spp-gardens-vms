@@ -8,6 +8,7 @@
 
 import React from 'react'
 import { formatCurrency, VENUE_LABELS } from '../utils/formatters'
+import { ROOM_RATE } from '../utils/constants'
 
 const INR = v => {
   const n = Number(v) || 0
@@ -83,7 +84,7 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false, log
   const payments = booking.payments || []
   const incidentals = (booking.incidental_items || []).slice().sort((a, b) => a.sort_order - b.sort_order)
   const lightingItems = incidentals.filter(i => i.category === 'lighting')
-  const othersItems = incidentals.filter(i => i.category === 'others')
+  const othersItems = incidentals.filter(i => i.category === 'others' && i.description !== 'ROOMS')
 
   // --- Section 1: Lawn / Event / Banquet charges ---
   const isBanquet = booking.booking_category === 'banquet'
@@ -104,7 +105,14 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false, log
       })))
     : []
   const banquetRevenue = banquetMealRows.reduce((s, r) => s + r.amount + r.extra_amount, 0)
-  const section1Base = isBanquet ? (banquetRevenue + lawnCharges) : lawnCharges
+
+  // Room charges
+  const chargeRooms = (booking.room_bookings && booking.room_bookings.length > 0)
+    ? booking.room_bookings.length
+    : (booking.rooms_required || 0)
+  const roomCharges = chargeRooms * ROOM_RATE
+
+  const section1Base = isBanquet ? (banquetRevenue + lawnCharges + roomCharges) : (lawnCharges + roomCharges)
   const lawnGst = Math.round(section1Base * venueGstPct / 100)
   const totalLawn = section1Base + lawnGst
 
@@ -238,6 +246,13 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false, log
                   <TRow label="LAWN CHARGES" qty="1" rate={`₹ ${INR(lawnCharges)}`} amount={lawnCharges} />
                 </>
               )}
+              {roomCharges > 0 && (
+                <>
+                  <BlankRow />
+                  <SectionHeader label="ROOM CHARGES" />
+                  <TRow label="ROOMS" qty={INR(chargeRooms)} rate={`₹ ${INR(ROOM_RATE)}`} amount={roomCharges} />
+                </>
+              )}
               <TRow label="SUB TOTAL" amount={section1Base} shade />
               <TRow label={`ADD: GST @ ${venueGstPct}%`} amount={lawnGst} />
               <TRow label="TOTAL (EVENT CHARGES)" amount={totalLawn} bold shade />
@@ -246,9 +261,12 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false, log
             <>
               <SectionHeader label="EVENT" />
               <TRow label="LAWN CHARGES" qty="1" rate={`₹ ${INR(lawnCharges)}`} amount={lawnCharges} />
-              <TRow label="SUB TOTAL" amount={lawnCharges} shade />
-              <TRow label={`ADD: GST @ ${venueGstPct}% on Lawn Charges`} amount={lawnGst} />
-              <TRow label="TOTAL (LAWN CHARGES)" amount={totalLawn} bold shade />
+              {roomCharges > 0 && (
+                <TRow label="ROOM CHARGES" qty={INR(chargeRooms)} rate={`₹ ${INR(ROOM_RATE)}`} amount={roomCharges} />
+              )}
+              <TRow label="SUB TOTAL" amount={section1Base} shade />
+              <TRow label={`ADD: GST @ ${venueGstPct}%`} amount={lawnGst} />
+              <TRow label="TOTAL (EVENT CHARGES)" amount={totalLawn} bold shade />
             </>
           )}
         </tbody>
