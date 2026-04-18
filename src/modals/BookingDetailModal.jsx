@@ -22,6 +22,7 @@ export default function BookingDetailModal({ booking, onClose, onEdit, onPayment
   const { lawnRental, roomCharges, chargeRooms, depositAmount, banquetRevenue, totalBookingValue, gst, totalToCollect, advanceTarget } = computeBookingTotals(booking)
   const balance = totalToCollect - totalPaid
   const isBanquet = booking.booking_category === 'banquet'
+  const isCatering = booking.booking_category === 'catering'
 
   const perms = user?.permissions || []
   const canEdit = !eventsView && perms.includes('edit')
@@ -110,8 +111,13 @@ export default function BookingDetailModal({ booking, onClose, onEdit, onPayment
                 <div className="info-row">
                   <span className="info-label">Booking</span>
                   <span className="info-value">
-                    <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: '0.78rem', fontWeight: 600, background: isBanquet ? '#f0faf0' : '#f0f4ff', color: isBanquet ? '#166534' : '#1e3a8a', border: `1px solid ${isBanquet ? '#86efac' : '#bfdbfe'}` }}>
-                      {isBanquet ? 'Banquet' : 'Venue Rental'}
+                    <span style={{
+                      padding: '1px 8px', borderRadius: 10, fontSize: '0.78rem', fontWeight: 600,
+                      background: isBanquet ? '#f0faf0' : isCatering ? '#fff8e1' : '#f0f4ff',
+                      color: isBanquet ? '#166534' : isCatering ? '#b36a00' : '#1e3a8a',
+                      border: `1px solid ${isBanquet ? '#86efac' : isCatering ? '#f5c842' : '#bfdbfe'}`,
+                    }}>
+                      {isBanquet ? 'Banquet' : isCatering ? 'Catering' : 'Venue Rental'}
                     </span>
                   </span>
                 </div>
@@ -129,13 +135,13 @@ export default function BookingDetailModal({ booking, onClose, onEdit, onPayment
                 <div className="card-title">Payment Summary</div>
 
                 {/* Line items */}
-                {isBanquet && banquetRevenue > 0 && (
+                {(isBanquet || isCatering) && banquetRevenue > 0 && (
                   <div className="info-row">
-                    <span className="info-label">Banquet Revenue</span>
+                    <span className="info-label">{isCatering ? 'Catering Revenue' : 'Banquet Revenue'}</span>
                     <span className="info-value" style={{ color: 'var(--grove)', fontWeight: 600 }}>{formatCurrency(banquetRevenue)}</span>
                   </div>
                 )}
-                {(lawnRental > 0 || !isBanquet) && (
+                {!isCatering && (lawnRental > 0 || !isBanquet) && (
                   <div className="info-row">
                     <span className="info-label">Lawn Rental</span>
                     <span className="info-value">{formatCurrency(lawnRental)}</span>
@@ -159,7 +165,9 @@ export default function BookingDetailModal({ booking, onClose, onEdit, onPayment
                 )}
                 {gst > 0 && (
                   <div className="info-row">
-                    <span className="info-label" style={{ color: '#5c6bc0' }}>GST (18%)</span>
+                    <span className="info-label" style={{ color: '#5c6bc0' }}>
+                      {isCatering ? 'GST (5% food + 18% deposit)' : 'GST (18%)'}
+                    </span>
                     <span className="info-value" style={{ color: '#5c6bc0', fontWeight: 600 }}>{formatCurrency(gst)}</span>
                   </div>
                 )}
@@ -189,7 +197,7 @@ export default function BookingDetailModal({ booking, onClose, onEdit, onPayment
                 {/* Advance target indicator */}
                 {advanceTarget > 0 && (
                   <div style={{ fontSize: '0.75rem', color: '#888', marginTop: 6 }}>
-                    Advance target: {formatCurrency(advanceTarget)} ({isBanquet ? '50% of banquet revenue' : '50% of lawn rental'})
+                    Advance target: {formatCurrency(advanceTarget)} ({isBanquet ? '50% of banquet revenue' : isCatering ? '50% of catering revenue' : '50% of lawn rental'})
                     {totalPaid >= advanceTarget && <span style={{ color: '#1b5e20', fontWeight: 600, marginLeft: 6 }}>✓ Met</span>}
                   </div>
                 )}

@@ -57,6 +57,7 @@ export const TOKEN_ADVANCE_DEADLINE_DAYS = 14
 export const BOOKING_CATEGORY = {
   VENUE_RENTAL: 'venue_rental',
   BANQUET: 'banquet',
+  CATERING: 'catering',
 }
 
 /**

@@ -82,6 +82,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
   const [error, setError] = useState('')
 
   const isBanquet = bookingCategory === BOOKING_CATEGORY.BANQUET
+  const isCatering = bookingCategory === BOOKING_CATEGORY.CATERING
 
   // Room availability — exclude this booking's own rooms_required from the count
   const roomAvailability = useMemo(() => {
@@ -108,25 +109,28 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
     }
   }, [roomAvailability.minAvailable])
 
-  // Computed banquet revenue
+  // Computed meal revenue for banquet and catering
   const banquetRevenue = useMemo(() => {
-    if (!isBanquet) return 0
+    if (!isBanquet && !isCatering) return 0
     return slots.reduce((total, s) =>
       total + (s.meals || []).reduce((st, m) => st + (Number(m.pax || 0) * Number(m.rate || 0)), 0), 0)
-  }, [slots, isBanquet])
+  }, [slots, isBanquet, isCatering])
 
-  // Auto-set advance target to 50% of banquet revenue when in banquet mode
+  // Auto-set advance target to 50% of meal revenue when in banquet or catering mode
   useEffect(() => {
-    if (!isBanquet) return
+    if (!isBanquet && !isCatering) return
     const half = Math.round(banquetRevenue * 0.5)
     setForm(prev => ({ ...prev, advance_target: half > 0 ? String(half) : '' }))
-  }, [banquetRevenue, isBanquet])
+  }, [banquetRevenue, isBanquet, isCatering])
 
-  const lawnRentalNum = Number(form.lawn_rental) || 0
-  const roomCharges = roomsRequired * ROOM_RATE
+  const lawnRentalNum = isCatering ? 0 : (Number(form.lawn_rental) || 0)
+  const roomCharges = isCatering ? 0 : roomsRequired * ROOM_RATE
   const depositNum = Number(form.deposit_amount) || 0
-  const bookingValueNum = (isBanquet ? banquetRevenue : 0) + lawnRentalNum + roomCharges
-  const gstNum = Math.round((bookingValueNum + depositNum) * 0.18)
+  const bookingValueNum = (isBanquet || isCatering ? banquetRevenue : 0) + lawnRentalNum + roomCharges
+  // Catering: 5% on food + 18% on deposit; others: flat 18%
+  const gstNum = isCatering
+    ? Math.round(banquetRevenue * 0.05) + Math.round(depositNum * 0.18)
+    : Math.round((bookingValueNum + depositNum) * 0.18)
   const totalToCollect = bookingValueNum + depositNum + gstNum
 
   function setField(f, v) { setForm(prev => ({ ...prev, [f]: v })) }
@@ -206,6 +210,19 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                   <span className="cat-option-desc">In-house catering by SPP Gardens</span>
                 </div>
               </label>
+              <label className={`cat-option ${bookingCategory === BOOKING_CATEGORY.CATERING ? 'active' : ''}`}>
+                <input
+                  type="radio"
+                  name="booking_category_edit"
+                  value={BOOKING_CATEGORY.CATERING}
+                  checked={bookingCategory === BOOKING_CATEGORY.CATERING}
+                  onChange={() => setBookingCategory(BOOKING_CATEGORY.CATERING)}
+                />
+                <div className="cat-option-text">
+                  <span className="cat-option-title">Catering Booking</span>
+                  <span className="cat-option-desc">Outdoor catering by SPP Gardens — GST 5% food, 18% other</span>
+                </div>
+              </label>
             </div>
 
             <div className="nbf-grid">
@@ -266,10 +283,11 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
               {/* ── Booking Slots + Rooms ── */}
               <div className="nbf-slots">
                 <h4 style={{ fontFamily: 'var(--font-heading)', color: 'var(--forest)', marginBottom: 14, fontSize: '1rem' }}>
-                  Booking Slots {isBanquet && <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#666' }}>— add meals per slot below</span>}
+                  Booking Slots {(isBanquet || isCatering) && <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#666' }}>— add meals per slot below</span>}
                 </h4>
-                <SlotBuilder slots={slots} onChange={setSlots} bookings={bookings} excludeBookingId={booking.id} banquetMode={isBanquet} />
-                <div style={{ marginTop: 20 }}>
+                <SlotBuilder slots={slots} onChange={setSlots} bookings={bookings} excludeBookingId={booking.id} banquetMode={isBanquet || isCatering} cateringMode={isCatering} />
+                {/* Rooms Required — not applicable for catering */}
+                {!isCatering && <div style={{ marginTop: 20 }}>
                   <h4 style={{ fontFamily: 'var(--font-heading)', color: 'var(--forest)', marginBottom: 6, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
                     Rooms Required
                     {roomAvailability.byDate.length > 0 && (
@@ -304,25 +322,27 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                       <textarea className="form-control" value={form.rooms_notes} onChange={e => setField('rooms_notes', e.target.value)} placeholder="e.g. 2 HRP Lawn Rooms, ground floor preferred..." rows={2} />
                     </div>
                   )}
-                </div>
+                </div>}
               </div>{/* /nbf-slots */}
 
               {/* ── Pricing ── */}
               <div className="nbf-pricing">
                 <h4 style={{ fontFamily: 'var(--font-heading)', color: 'var(--forest)', marginBottom: 14, fontSize: '1rem' }}>Pricing</h4>
 
-                {isBanquet && (
+                {(isBanquet || isCatering) && (
                   <BanquetRevenueSummary slots={slots} roomsRequired={roomsRequired} />
                 )}
 
                 <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">
-                      Lawn Rental (₹)
-                      {isBanquet && <span style={{ fontSize: '0.72rem', color: '#888', marginLeft: 4 }}>(if below min guarantee)</span>}
-                    </label>
-                    <input className="form-control" type="number" value={form.lawn_rental} onChange={e => setField('lawn_rental', e.target.value)} min="0" />
-                  </div>
+                  {!isCatering && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        Lawn Rental (₹)
+                        {isBanquet && <span style={{ fontSize: '0.72rem', color: '#888', marginLeft: 4 }}>(if below min guarantee)</span>}
+                      </label>
+                      <input className="form-control" type="number" value={form.lawn_rental} onChange={e => setField('lawn_rental', e.target.value)} min="0" />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label className="form-label">Advance Target (₹)</label>
                     <input className="form-control" type="number" value={form.advance_target} onChange={e => setField('advance_target', e.target.value)} min="0" />
@@ -333,11 +353,11 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                   <input className="form-control" type="number" value={form.deposit_amount} onChange={e => setField('deposit_amount', e.target.value)} min="0" placeholder="0" />
                 </div>
 
-                {isBanquet && totalToCollect > 0 && (
+                {(isBanquet || isCatering) && totalToCollect > 0 && (
                   <div className="banquet-total-summary">
                     {banquetRevenue > 0 && (
                       <div className="banquet-total-row">
-                        <span>Banquet Revenue</span>
+                        <span>{isCatering ? 'Catering Revenue' : 'Banquet Revenue'}</span>
                         <span>₹{banquetRevenue.toLocaleString('en-IN')}</span>
                       </div>
                     )}
@@ -347,7 +367,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                         <span>₹{lawnRentalNum.toLocaleString('en-IN')}</span>
                       </div>
                     )}
-                    {roomsRequired > 0 && (
+                    {roomCharges > 0 && (
                       <div className="banquet-total-row">
                         <span>Rooms ({roomsRequired} × ₹{ROOM_RATE.toLocaleString('en-IN')})</span>
                         <span>₹{roomCharges.toLocaleString('en-IN')}</span>
@@ -361,7 +381,10 @@ export default function EditBookingModal({ booking, onClose, onSuccess, user, bo
                     )}
                     {gstNum > 0 && (
                       <div className="banquet-total-row" style={{ color: '#5c6bc0' }}>
-                        <span>GST (18%)</span>
+                        {isCatering
+                          ? <span>GST (5% food + 18% deposit)</span>
+                          : <span>GST (18%)</span>
+                        }
                         <span>₹{gstNum.toLocaleString('en-IN')}</span>
                       </div>
                     )}

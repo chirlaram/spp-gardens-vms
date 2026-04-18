@@ -86,13 +86,15 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false, log
   const lightingItems = incidentals.filter(i => i.category === 'lighting')
   const othersItems = incidentals.filter(i => i.category === 'others' && i.description !== 'ROOMS')
 
-  // --- Section 1: Lawn / Event / Banquet charges ---
+  // --- Section 1: Lawn / Event / Banquet / Catering charges ---
   const isBanquet = booking.booking_category === 'banquet'
+  const isCatering = booking.booking_category === 'catering'
   const lawnCharges = Number(booking.lawn_rental || 0)
-  const venueGstPct = Number(booking.venue_gst_percent) || 18
+  // Venue GST: catering food is 5%, all others default to 18%
+  const venueGstPct = isCatering ? 5 : (Number(booking.venue_gst_percent) || 18)
 
-  // For banquet: compute per-slot meal rows
-  const banquetMealRows = isBanquet
+  // For banquet and catering: compute per-slot meal rows
+  const banquetMealRows = (isBanquet || isCatering)
     ? slots.flatMap(s => (s.meals || []).map(m => ({
         slotLabel: `${s.date ? s.date.split('-').reverse().join('.') : ''} (${(s.slot || '').toUpperCase()})`,
         meal_type: m.meal_type || '',
@@ -106,13 +108,20 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false, log
     : []
   const banquetRevenue = banquetMealRows.reduce((s, r) => s + r.amount + r.extra_amount, 0)
 
-  // Room charges
-  const chargeRooms = (booking.room_bookings && booking.room_bookings.length > 0)
-    ? booking.room_bookings.length
-    : (booking.rooms_required || 0)
+  // Room charges (skipped for catering — food only, no venue stay)
+  const chargeRooms = isCatering
+    ? 0
+    : (booking.room_bookings && booking.room_bookings.length > 0)
+      ? booking.room_bookings.length
+      : (booking.rooms_required || 0)
   const roomCharges = chargeRooms * ROOM_RATE
 
-  const section1Base = isBanquet ? (banquetRevenue + lawnCharges + roomCharges) : (lawnCharges + roomCharges)
+  // Catering: meal revenue only. Banquet: meal + lawn + rooms. Venue rental: lawn + rooms.
+  const section1Base = isCatering
+    ? banquetRevenue
+    : isBanquet
+      ? (banquetRevenue + lawnCharges + roomCharges)
+      : (lawnCharges + roomCharges)
   const lawnGst = Math.round(section1Base * venueGstPct / 100)
   const totalLawn = section1Base + lawnGst
 
@@ -256,6 +265,32 @@ export default function ConsolidatedBillTemplate({ booking, isFinal = false, log
               <TRow label="SUB TOTAL" amount={section1Base} shade />
               <TRow label={`ADD: GST @ ${venueGstPct}%`} amount={lawnGst} />
               <TRow label="TOTAL (EVENT CHARGES)" amount={totalLawn} bold shade />
+            </>
+          ) : isCatering ? (
+            <>
+              <SectionHeader label="CATERING CHARGES" />
+              {banquetMealRows.map((r, idx) => (
+                <React.Fragment key={idx}>
+                  <TRow
+                    label={`${r.slotLabel} — ${r.meal_type.charAt(0).toUpperCase() + r.meal_type.slice(1)} (${r.menu})`}
+                    qty={INR(r.pax)}
+                    rate={`₹ ${INR(r.rate)}`}
+                    amount={r.amount}
+                  />
+                  {r.extra_pax > 0 && (
+                    <TRow
+                      label={`${r.slotLabel} — ${r.meal_type.charAt(0).toUpperCase() + r.meal_type.slice(1)} (${r.menu}) — Extra Plates`}
+                      qty={INR(r.extra_pax)}
+                      rate={`₹ ${INR(r.rate)}`}
+                      amount={r.extra_amount}
+                    />
+                  )}
+                </React.Fragment>
+              ))}
+              {banquetMealRows.length === 0 && <TRow label="(No meal details)" />}
+              <TRow label="SUB TOTAL (CATERING)" amount={banquetRevenue} shade />
+              <TRow label="ADD: GST @ 5% on Food (Catering)" amount={lawnGst} />
+              <TRow label="TOTAL (CATERING CHARGES)" amount={totalLawn} bold shade />
             </>
           ) : (
             <>

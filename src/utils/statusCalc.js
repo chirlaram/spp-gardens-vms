@@ -35,19 +35,37 @@ export function computeBanquetRevenue(booking) {
 /**
  * Compute all financial totals for a booking object.
  * Works whether room_bookings (allotted) or rooms_required (reserved) is available.
+ *
+ * GST rules:
+ *   - venue_rental / banquet: flat 18% on (totalBookingValue + depositAmount)
+ *   - catering: 5% on food (meal revenue) + 18% on incidental deposit
+ *     Catering has no lawn rental and no room charges.
  */
 export function computeBookingTotals(booking) {
-  const lawnRental = Number(booking.lawn_rental || 0)
-  const chargeRooms = (booking.room_bookings && booking.room_bookings.length > 0)
+  const isCatering = booking.booking_category === 'catering'
+  const isBanquet = booking.booking_category === 'banquet'
+
+  // Catering bookings have no lawn rental and no room charges
+  const lawnRental = isCatering ? 0 : Number(booking.lawn_rental || 0)
+  const chargeRooms = isCatering ? 0 : (booking.room_bookings && booking.room_bookings.length > 0)
     ? booking.room_bookings.length
     : (booking.rooms_required || 0)
   const roomCharges = chargeRooms * 5000
   const depositAmount = Number(booking.deposit_amount || 0)
-  const banquetRevenue = booking.booking_category === 'banquet'
+
+  // Both banquet and catering use meal-based revenue
+  const banquetRevenue = (isBanquet || isCatering)
     ? computeBanquetRevenue(booking)
     : 0
+
   const totalBookingValue = banquetRevenue + lawnRental + roomCharges
-  const gst = Math.round((totalBookingValue + depositAmount) * 0.18)
+
+  // Catering: 5% GST on food, 18% GST on incidental deposit
+  // All other categories: flat 18% on everything
+  const gst = isCatering
+    ? Math.round(banquetRevenue * 0.05) + Math.round(depositAmount * 0.18)
+    : Math.round((totalBookingValue + depositAmount) * 0.18)
+
   const totalToCollect = totalBookingValue + depositAmount + gst
   const advanceTarget = Number(booking.advance_target || 0)
   return { lawnRental, roomCharges, chargeRooms, depositAmount, banquetRevenue, totalBookingValue, gst, totalToCollect, advanceTarget }
